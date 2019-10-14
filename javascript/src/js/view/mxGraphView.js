@@ -1013,11 +1013,16 @@ mxGraphView.prototype.validateCellState = function(cell, recurse)
  */
 mxGraphView.prototype.updateCellState = function(state)
 {
+	state.modelOffset.x = 0;
+	state.modelOffset.y = 0;
+	state.modelLength = 0;
+
 	state.absoluteOffset.x = 0;
 	state.absoluteOffset.y = 0;
+	state.length = 0;
+	
 	state.origin.x = 0;
 	state.origin.y = 0;
-	state.length = 0;
 	
 	if (state.cell != this.currentRoot)
 	{
@@ -1050,34 +1055,43 @@ mxGraphView.prototype.updateCellState = function(state)
 				{
 					if (model.isEdge(pState.cell))
 					{
-						var origin = this.getPoint(pState, geo);
+						var origin = this.getModelPoint(pState, geo);
 
 						if (origin != null)
 						{
-							state.origin.x += (origin.x / this.scale) - pState.origin.x - this.translate.x;
-							state.origin.y += (origin.y / this.scale) - pState.origin.y - this.translate.y;
+							state.origin.x += (origin.x) - pState.origin.x;
+							state.origin.y += (origin.y) - pState.origin.y;
 						}
 					}
 					else
 					{
-						state.origin.x += geo.x * pState.width / this.scale + offset.x;
-						state.origin.y += geo.y * pState.height / this.scale + offset.y;
+						state.origin.x += geo.x * pState.modelBounds.width + offset.x;
+						state.origin.y += geo.y * pState.modelBounds.height + offset.y;
 					}
 				}
 				else
 				{
+					state.modelOffset.x = offset.x;
+					state.modelOffset.y = offset.y;
 					state.absoluteOffset.x = this.scale * offset.x;
 					state.absoluteOffset.y = this.scale * offset.y;
+
 					state.origin.x += geo.x;
 					state.origin.y += geo.y;
 				}
 			}
-	
+
+			state.modelBounds.x = state.origin.x;
+			state.modelBounds.y = state.origin.y;
+			state.modelBounds.width = geo.width;
+			state.modelBounds.height = geo.height;
+			
 			state.x = this.scale * (this.translate.x + state.origin.x);
 			state.y = this.scale * (this.translate.y + state.origin.y);
 			state.width = this.scale * geo.width;
-			state.unscaledWidth = geo.width;
 			state.height = this.scale * geo.height;
+
+			state.unscaledWidth = geo.width;
 			
 			if (model.isVertex(state.cell))
 			{
@@ -1124,6 +1138,12 @@ mxGraphView.prototype.updateVertexState = function(state, geo)
 		{
 			var cos = Math.cos(alpha);
 			var sin = Math.sin(alpha);
+			
+			var ct = new mxPoint(state.modelBounds.getCenterX(), state.modelBounds.getCenterY());
+			var cx = new mxPoint(pState.modelBounds.getCenterX(), pState.modelBounds.getCenterY());
+			var pt = mxUtils.getRotatedPoint(ct, cos, sin, cx);
+			state.modelBounds.x = pt.x - state.modelBounds.width / 2;
+			state.modelBounds.y = pt.y - state.modelBounds.height / 2;
 
 			var ct = new mxPoint(state.getCenterX(), state.getCenterY());
 			var cx = new mxPoint(pState.getCenterX(), pState.getCenterY());
@@ -1197,6 +1217,13 @@ mxGraphView.prototype.updateVertexLabelOffset = function(state)
 	{
 		var lw = mxUtils.getValue(state.style, mxConstants.STYLE_LABEL_WIDTH, null);
 		
+		if (lw == null)
+		{
+			lw = state.modelBounds.width;
+		}
+		
+		state.modelOffset.x -= lw;
+		
 		if (lw != null)
 		{
 			lw *= this.scale;
@@ -1210,6 +1237,7 @@ mxGraphView.prototype.updateVertexLabelOffset = function(state)
 	}
 	else if (h == mxConstants.ALIGN_RIGHT)
 	{
+		state.modelOffset.x += state.modelBounds.width;
 		state.absoluteOffset.x += state.width;
 	}
 	else if (h == mxConstants.ALIGN_CENTER)
@@ -1233,6 +1261,7 @@ mxGraphView.prototype.updateVertexLabelOffset = function(state)
 			
 			if (dx != 0)
 			{
+				state.modelOffset.x -= (lw - state.modelBounds.width) * dx;
 				state.absoluteOffset.x -= (lw * this.scale - state.width) * dx;
 			}
 		}
@@ -1242,10 +1271,12 @@ mxGraphView.prototype.updateVertexLabelOffset = function(state)
 	
 	if (v == mxConstants.ALIGN_TOP)
 	{
+		state.modelOffset.y -= state.modelBounds.height;
 		state.absoluteOffset.y -= state.height;
 	}
 	else if (v == mxConstants.ALIGN_BOTTOM)
 	{
+		state.modelOffset.y += state.modelBounds.height;
 		state.absoluteOffset.y += state.height;
 	}
 };
@@ -1327,7 +1358,46 @@ mxGraphView.prototype.updateFixedTerminalPoints = function(edge, source, target)
  */
 mxGraphView.prototype.updateFixedTerminalPoint = function(edge, terminal, source, constraint)
 {
+	edge.setModelTerminalPoint(this.getFixedModelTerminalPoint(edge, terminal, source, constraint), source);
+	// TODO: transform model terminal point
 	edge.setAbsoluteTerminalPoint(this.getFixedTerminalPoint(edge, terminal, source, constraint), source);
+	console.log('updateFixedTerminalPoint', edge.absolutePoints, edge.modelPoints);
+};
+
+/**
+ * Function: getFixedModelTerminalPoint
+ *
+ * Returns the fixed source or target terminal point for the given edge.
+ * 
+ * Parameters:
+ * 
+ * edge - <mxCellState> whose terminal point should be returned.
+ * terminal - <mxCellState> which represents the actual terminal.
+ * source - Boolean that specifies if the terminal is the source.
+ * constraint - <mxConnectionConstraint> that specifies the connection.
+ */
+mxGraphView.prototype.getFixedModelTerminalPoint = function(edge, terminal, source, constraint)
+{
+	var pt = null;
+	
+	if (constraint != null)
+	{
+		pt = this.graph.getConnectionPoint(terminal, constraint, this.graph.isOrthogonal(edge));
+	}
+	
+	if (pt == null && terminal == null)
+	{
+		var orig = edge.origin;
+		var geo = this.graph.getCellGeometry(edge.cell);
+		pt = geo.getTerminalPoint(source);
+		
+		if (pt != null)
+		{
+			pt = new mxPoint(pt.x + orig.x, pt.y + orig.y);
+		}
+	}
+	
+	return pt;
 };
 
 /**
@@ -1395,6 +1465,32 @@ mxGraphView.prototype.updateBoundsFromStencil = function(state)
 };
 
 /**
+ * Function: updateModelBoundsFromStencil
+ * 
+ * Updates the bounds of the given cell state to reflect the bounds of the stencil
+ * if it has a fixed aspect and returns the previous bounds as an <mxRectangle> if
+ * the bounds have been modified or null otherwise.
+ * 
+ * Parameters:
+ * 
+ * edge - <mxCellState> whose bounds should be updated.
+ */
+mxGraphView.prototype.updateModelBoundsFromStencil = function(state)
+{
+	var previous = null;
+	
+	if (state != null && state.shape != null && state.shape.stencil != null && state.shape.stencil.aspect == 'fixed')
+	{
+		previous = mxRectangle.fromRectangle(state.modelBounds);
+		var asp = state.shape.stencil.computeAspect(state.style, state.modelBounds.modelBounds.x,
+			state.modelBounds.y, state.modelBounds.width, state.modelBounds.height);
+		state.modelBounds.setRect(asp.x, asp.y, state.shape.stencil.w0 * asp.width, state.shape.stencil.h0 * asp.height);
+	}
+	
+	return previous;
+};
+
+/**
  * Function: updatePoints
  *
  * Updates the absolute points in the given state using the specified array
@@ -1411,8 +1507,12 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 {
 	if (edge != null)
 	{
+		var modelPts = [];
 		var pts = [];
+
+		modelPts.push(edge.modelPoints[0]);
 		pts.push(edge.absolutePoints[0]);
+		
 		var edgeStyle = this.getEdgeStyle(edge, points, source, target);
 		
 		if (edgeStyle != null)
@@ -1421,10 +1521,62 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 			var trg = this.getTerminalPort(edge, target, false);
 			
 			// Uses the stencil bounds for routing and restores after routing
+			var srcModelBounds = this.updateModelBoundsFromStencil(src);
+			var trgModelBounds = this.updateModelBoundsFromStencil(trg);
+
+			// Uses the stencil bounds for routing and restores after routing
 			var srcBounds = this.updateBoundsFromStencil(src);
 			var trgBounds = this.updateBoundsFromStencil(trg);
 
-			edgeStyle(edge, src, trg, points, pts);
+			if (true)
+			{
+				edgeStyle(edge, src, trg, points, pts);
+			}
+			else
+			{
+				// Swaps absolute points and bounds with model points and bounds for routing
+				var absPoints = edge.absolutePoints;
+				edge.absolutePoints = edge.modelPoints;
+				
+				var srcAbsBounds = null;
+				var trgAbsBounds = null;
+				
+				if (src != null)
+				{
+					srcAbsBounds = mxRectangle.fromRectangle(src);
+					src.setRect(src.modelBounds.x, src.modelBounds.y,
+						src.modelBounds.width, src.modelBounds.height);
+				}
+	
+				if (trg != null)
+				{
+					trgAbsBounds = mxRectangle.fromRectangle(trg);
+					trg.setRect(trg.modelBounds.x, trg.modelBounds.y,
+						trg.modelBounds.width, trg.modelBounds.height);
+				}
+
+				edgeStyle(edge, src, trg, points, modelPts);
+				
+				
+				console.log('modelPts', src.x, src.y, src.width, src.height, modelPts);
+				
+	
+				// Swap model points and bounds with absolute points and bounds for continue
+				for (var i = 1; i < modelPts.length; i++)
+				{
+					pts.push(this.transformPoint(modelPts[i]));
+				}
+				
+				if (srcAbsBounds != null)
+				{
+					src.setRect(srcAbsBounds);
+				}
+	
+				if (trgModelBounds != null)
+				{
+					trg.setRect(trgModelBounds);
+				}
+			}
 			
 			// Restores previous bounds
 			if (srcBounds != null)
@@ -1436,6 +1588,18 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 			{
 				trg.setRect(trgBounds.x, trgBounds.y, trgBounds.width, trgBounds.height);
 			}
+			
+			if (srcModelBounds != null)
+			{
+				src.modelBounds.setRect(srcModelBounds.x, srcModelBounds.y,
+					srcModelBounds.width, srcModelBounds.height);
+			}
+			
+			if (trgModelBounds != null)
+			{
+				trg.modelBounds.setRect(trgModelBounds.x, trgModelBounds.y,
+					trgModelBounds.width, trgModelBounds.height);
+			}
 		}
 		else if (points != null)
 		{
@@ -1443,15 +1607,19 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 			{
 				if (points[i] != null)
 				{
-					var pt = mxUtils.clone(points[i]);
-					pts.push(this.transformControlPoint(edge, pt));
+					modelPts.push(this.transformModelControlPoint(edge, points[i]));
+					pts.push(this.transformControlPoint(edge, points[i]));
 				}
 			}
 		}
-		
-		var tmp = edge.absolutePoints;
+
+		var tmp = edge.modelPoints;
+		modelPts.push(tmp[tmp.length-1]);
+				
+		tmp = edge.absolutePoints;
 		pts.push(tmp[tmp.length-1]);
 
+		edge.modelPoints = modelPts;
 		edge.absolutePoints = pts;
 	}
 };
@@ -1469,6 +1637,39 @@ mxGraphView.prototype.transformControlPoint = function(state, pt)
 		
 	    return new mxPoint(this.scale * (pt.x + this.translate.x + orig.x),
 	    	this.scale * (pt.y + this.translate.y + orig.y));
+	}
+	
+	return null;
+};
+
+/**
+ * Function: transformModelControlPoint
+ *
+ * Transforms the given control point to an absolute point.
+ */
+mxGraphView.prototype.transformModelControlPoint = function(state, pt)
+{
+	if (state != null && pt != null)
+	{
+		var orig = state.origin;
+		
+	    return new mxPoint(pt.x + orig.x, pt.y + orig.y);
+	}
+	
+	return null;
+};
+
+/**
+ * Function: transformPoint
+ * 
+ * Creates a new point with scaling and translation applied.
+ */
+mxGraphView.prototype.transformPoint = function(pt)
+{
+	if (pt != null)
+	{
+	    return new mxPoint(this.scale * (pt.x + this.translate.x),
+	    	this.scale * (pt.y + this.translate.y));
 	}
 	
 	return null;
@@ -1995,6 +2196,83 @@ mxGraphView.prototype.updateEdgeBounds = function(state)
 };
 
 /**
+ * Function: getModelPoint
+ *
+ * Returns the absolute point on the edge for the given relative
+ * <mxGeometry> as an <mxPoint>. The edge is represented by the given
+ * <mxCellState>.
+ * 
+ * Parameters:
+ * 
+ * state - <mxCellState> that represents the state of the parent edge.
+ * geometry - <mxGeometry> that represents the relative location.
+ */
+mxGraphView.prototype.getModelPoint = function(state, geometry)
+{
+	var x = state.modelBounds.getCenterX();
+	var y = state.modelBounds.getCenterY();
+	
+	if (state.modelSegments != null && (geometry == null || geometry.relative))
+	{
+		var gx = (geometry != null) ? geometry.x / 2 : 0;
+		var pointCount = state.modelPoints.length;
+		var dist = Math.round((gx + 0.5) * state.modelLength);
+		var segment = state.modelSegments[0];
+		var length = 0;				
+		var index = 1;
+
+		while (dist >= Math.round(length + segment) && index < pointCount - 1)
+		{
+			length += segment;
+			segment = state.modelSegments[index++];
+		}
+
+		var factor = (segment == 0) ? 0 : (dist - length) / segment;
+		var p0 = state.modelPoints[index - 1];
+		var pe = state.modelPoints[index];
+
+		if (p0 != null && pe != null)
+		{
+			var gy = 0;
+			var offsetX = 0;
+			var offsetY = 0;
+
+			if (geometry != null)
+			{
+				gy = geometry.y;
+				var offset = geometry.offset;
+				
+				if (offset != null)
+				{
+					offsetX = offset.x;
+					offsetY = offset.y;
+				}
+			}
+
+			var dx = pe.x - p0.x;
+			var dy = pe.y - p0.y;
+			var nx = (segment == 0) ? 0 : dy / segment;
+			var ny = (segment == 0) ? 0 : dx / segment;
+			
+			x = p0.x + dx * factor + (nx * gy + offsetX);
+			y = p0.y + dy * factor - (ny * gy - offsetY);
+		}
+	}
+	else if (geometry != null)
+	{
+		var offset = geometry.offset;
+		
+		if (offset != null)
+		{
+			x += offset.x;
+			y += offset.y;
+		}
+	}
+	
+	return new mxPoint(x, y);		
+};
+
+/**
  * Function: getPoint
  *
  * Returns the absolute point on the edge for the given relative
@@ -2008,6 +2286,7 @@ mxGraphView.prototype.updateEdgeBounds = function(state)
  */
 mxGraphView.prototype.getPoint = function(state, geometry)
 {
+	// TODO: Use getModelPoint and transform
 	var x = state.getCenterX();
 	var y = state.getCenterY();
 	

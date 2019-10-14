@@ -35,6 +35,9 @@ function mxCellState(view, cell, style)
 	
 	this.origin = new mxPoint();
 	this.absoluteOffset = new mxPoint();
+	
+	this.modelBounds = new mxRectangle();
+	this.modelOffset = new mxPoint();
 };
 
 /**
@@ -80,6 +83,14 @@ mxCellState.prototype.invalidStyle = false;
 mxCellState.prototype.invalid = true;
 
 /**
+ * Variable: modelBounds
+ *
+ * <mxPoint> that holds the origin for all child cells. Default is a new
+ * empty <mxPoint>.
+ */
+mxCellState.prototype.modelBounds = null;
+
+/**
  * Variable: origin
  *
  * <mxPoint> that holds the origin for all child cells. Default is a new
@@ -96,6 +107,14 @@ mxCellState.prototype.origin = null;
 mxCellState.prototype.absolutePoints = null;
 
 /**
+ * Variable: modelPoints
+ * 
+ * Holds an array of <mxPoints> that represent the absolute points of an
+ * edge.
+ */
+mxCellState.prototype.modelPoints = null;
+
+/**
  * Variable: absoluteOffset
  *
  * <mxPoint> that holds the absolute offset. For edges, this is the
@@ -103,6 +122,15 @@ mxCellState.prototype.absolutePoints = null;
  * offset of the label relative to the top, left corner of the vertex. 
  */
 mxCellState.prototype.absoluteOffset = null;
+
+/**
+ * Variable: modelOffset
+ *
+ * <mxPoint> that holds the absolute offset. For edges, this is the
+ * absolute coordinates of the label position. For vertices, this is the
+ * offset of the label relative to the top, left corner of the vertex. 
+ */
+mxCellState.prototype.modelOffset = null;
 
 /**
  * Variable: visibleSourceState
@@ -126,11 +154,25 @@ mxCellState.prototype.visibleTargetState = null;
 mxCellState.prototype.terminalDistance = 0;
 
 /**
+ * Variable: modelTerminalDistance
+ * 
+ * Caches the distance between the end points for an edge.
+ */
+mxCellState.prototype.modelTerminalDistance = 0;
+
+/**
  * Variable: length
  *
  * Caches the length of an edge.
  */
 mxCellState.prototype.length = 0;
+
+/**
+ * Variable: modelLength
+ *
+ * Caches the length of an edge.
+ */
+mxCellState.prototype.modelLength = 0;
 
 /**
  * Variable: segments
@@ -139,6 +181,14 @@ mxCellState.prototype.length = 0;
  * edge.
  */
 mxCellState.prototype.segments = null;
+
+/**
+ * Variable: modelSegments
+ * 
+ * Array of numbers that represent the cached length of each segment of the
+ * edge.
+ */
+mxCellState.prototype.modelSegments = null;
 
 /**
  * Variable: shape
@@ -194,6 +244,54 @@ mxCellState.prototype.getPerimeterBounds = function(border, bounds)
 	}
 	
 	return bounds;
+};
+
+/**
+ * Function: setModelTerminalPoint
+ * 
+ * Sets the first or last point in <modelPoints> depending on isSource.
+ * 
+ * Parameters:
+ * 
+ * point - <mxPoint> that represents the terminal point.
+ * isSource - Boolean that specifies if the first or last point should
+ * be assigned.
+ */
+mxCellState.prototype.setModelTerminalPoint = function(point, isSource)
+{
+	if (isSource)
+	{
+		if (this.modelPoints == null)
+		{
+			this.modelPoints = [];
+		}
+		
+		if (this.modelPoints.length == 0)
+		{
+			this.modelPoints.push(point);
+		}
+		else
+		{
+			this.modelPoints[0] = point;
+		}
+	}
+	else
+	{
+		if (this.modelPoints == null)
+		{
+			this.modelPoints = [];
+			this.modelPoints.push(null);
+			this.modelPoints.push(point);
+		}
+		else if (this.modelPoints.length == 1)
+		{
+			this.modelPoints.push(point);
+		}
+		else
+		{
+			this.modelPoints[this.modelPoints.length - 1] = point;
+		}
+	}
 };
 
 /**
@@ -378,6 +476,13 @@ mxCellState.prototype.setState = function(state)
 	this.width = state.width;
 	this.height = state.height;
 	this.unscaledWidth = state.unscaledWidth;
+	
+	this.modelBounds = state.modelBounds;
+	this.modelPoints = state.modelPoints;
+	this.modelOffset = state.modelOffset;
+	this.modelTerminalDistance = state.terminalDistance;
+	this.modelSegments = state.modelSegments;
+	this.modelLength = state.modelLength;
 };
 
 /**
@@ -423,6 +528,30 @@ mxCellState.prototype.clone = function()
 	clone.width = this.width;
 	clone.height = this.height;
 	clone.unscaledWidth = this.unscaledWidth;
+	
+	if (this.modelBounds != null)
+	{
+		clone.modelBounds = this.modelBounds.clone();
+	}
+	
+	if (this.modelPoints != null)
+	{
+		clone.modelPoints = [];
+		
+		for (var i = 0; i < this.modelPoints.length; i++)
+		{
+			clone.modelPoints[i] = this.modelPoints[i].clone();
+		}
+	}
+
+	if (this.modelOffset != null)
+	{
+		clone.modelOffset = this.modelOffset.clone();
+	}
+	
+	clone.modelTerminalDistance = this.terminalDistance;
+	clone.modelSegments = this.modelSegments;
+	clone.modelLength = this.modelLength;
 	
 	return clone;
 };
