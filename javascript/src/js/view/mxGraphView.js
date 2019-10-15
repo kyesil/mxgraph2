@@ -1568,7 +1568,7 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 				edgeStyle(edge, src, trg, points, modelPts);
 				
 				
-				console.log('modelPts', edge.modelPoints[0].y, src.x, src.y, src.width, src.height, modelPts);
+				//console.log('modelPts', edge.modelPoints[0].y, src.x, src.y, src.width, src.height, modelPts);
 
 				this.translate = tr;
 				this.scale = s;
@@ -1661,6 +1661,8 @@ mxGraphView.prototype.transformControlPoint = function(state, pt)
  */
 mxGraphView.prototype.transformModelControlPoint = function(state, pt)
 {
+	console.log('here');
+	
 	if (state != null && pt != null)
 	{
 		var orig = state.origin;
@@ -1787,7 +1789,7 @@ mxGraphView.prototype.updateFloatingTerminalPoints = function(state, source, tar
  */
 mxGraphView.prototype.updateFloatingTerminalPoint = function(edge, start, end, source)
 {
-	edge.setModelTerminalPoint(this.getModelFloatingTerminalPoint(edge, terminal, source, constraint), source);
+	edge.setModelTerminalPoint(this.getModelFloatingTerminalPoint(edge, start, end, source), source);
 	edge.setAbsoluteTerminalPoint(this.getFloatingTerminalPoint(edge, start, end, source), source);
 };
 
@@ -1807,11 +1809,11 @@ mxGraphView.prototype.updateFloatingTerminalPoint = function(edge, start, end, s
 mxGraphView.prototype.getModelFloatingTerminalPoint = function(edge, start, end, source)
 {
 	start = this.getTerminalPort(edge, start, source);
-	var next = this.getNextPoint(edge, end, source);
+	var next = this.getNextModelPoint(edge, end, source);
 	
 	var orth = this.graph.isOrthogonal(edge);
 	var alpha = mxUtils.toRadians(Number(start.style[mxConstants.STYLE_ROTATION] || '0'));
-	var center = new mxPoint(start.getCenterX(), start.getCenterY());
+	var center = new mxPoint(start.modelBounds.getCenterX(), start.modelBounds.getCenterY());
 	
 	if (alpha != 0)
 	{
@@ -1824,7 +1826,7 @@ mxGraphView.prototype.getModelFloatingTerminalPoint = function(edge, start, end,
 	border += parseFloat(edge.style[(source) ?
 		mxConstants.STYLE_SOURCE_PERIMETER_SPACING :
 		mxConstants.STYLE_TARGET_PERIMETER_SPACING] || 0);
-	var pt = this.getPerimeterPoint(start, next, alpha == 0 && orth, border);
+	var pt = this.getModelPerimeterPoint(start, next, alpha == 0 && orth, border);
 
 	if (alpha != 0)
 	{
@@ -1911,6 +1913,89 @@ mxGraphView.prototype.getTerminalPort = function(state, terminal, source)
 	}
 	
 	return terminal;
+};
+
+/**
+ * Function: getModelPerimeterPoint
+ *
+ * Returns an <mxPoint> that defines the location of the intersection point between
+ * the perimeter and the line between the center of the shape and the given point.
+ * 
+ * Parameters:
+ * 
+ * terminal - <mxCellState> for the source or target terminal.
+ * next - <mxPoint> that lies outside of the given terminal.
+ * orthogonal - Boolean that specifies if the orthogonal projection onto
+ * the perimeter should be returned. If this is false then the intersection
+ * of the perimeter and the line between the next and the center point is
+ * returned.
+ * border - Optional border between the perimeter and the shape.
+ */
+mxGraphView.prototype.getModelPerimeterPoint = function(terminal, next, orthogonal, border)
+{
+	var point = null;
+	
+	if (terminal != null)
+	{
+		var perimeter = this.getPerimeterFunction(terminal);
+		
+		if (perimeter != null && next != null)
+		{
+			var bounds = this.getModelPerimeterBounds(terminal, border);
+
+			if (bounds.width > 0 || bounds.height > 0)
+			{
+				point = new mxPoint(next.x, next.y);
+				var flipH = false;
+				var flipV = false;	
+				
+				if (this.graph.model.isVertex(terminal.cell))
+				{
+					flipH = mxUtils.getValue(terminal.style, mxConstants.STYLE_FLIPH, 0) == 1;
+					flipV = mxUtils.getValue(terminal.style, mxConstants.STYLE_FLIPV, 0) == 1;	
+	
+					// Legacy support for stencilFlipH/V
+					if (terminal.shape != null && terminal.shape.stencil != null)
+					{
+						flipH = (mxUtils.getValue(terminal.style, 'stencilFlipH', 0) == 1) || flipH;
+						flipV = (mxUtils.getValue(terminal.style, 'stencilFlipV', 0) == 1) || flipV;
+					}
+	
+					if (flipH)
+					{
+						point.x = 2 * bounds.getCenterX() - point.x;
+					}
+					
+					if (flipV)
+					{
+						point.y = 2 * bounds.getCenterY() - point.y;
+					}
+				}
+				
+				point = perimeter(bounds, terminal, point, orthogonal);
+
+				if (point != null)
+				{
+					if (flipH)
+					{
+						point.x = 2 * bounds.getCenterX() - point.x;
+					}
+					
+					if (flipV)
+					{
+						point.y = 2 * bounds.getCenterY() - point.y;
+					}
+				}
+			}
+		}
+		
+		if (point == null)
+		{
+			point = this.getModelPoint(terminal);
+		}
+	}
+	
+	return point;
 };
 
 /**
@@ -2023,6 +2108,37 @@ mxGraphView.prototype.getRoutingCenterY = function (state)
 };
 
 /**
+ * Function: getModelPerimeterBounds
+ *
+ * Returns the perimeter bounds for the given terminal, edge pair as an
+ * <mxRectangle>.
+ * 
+ * Parameters:
+ * 
+ * terminal - <mxCellState> that represents the terminal.
+ * border - Number that adds a border between the shape and the perimeter.
+ */
+mxGraphView.prototype.getModelPerimeterBounds = function(terminal, border)
+{
+	border = (border != null) ? border : 0;
+
+	if (terminal != null)
+	{
+		border += parseFloat(terminal.style[mxConstants.STYLE_PERIMETER_SPACING] || 0);
+	}
+
+	var real = mxRectangle.fromRectangle(terminal);
+	terminal.setRect(terminal.modelBounds.x, terminal.modelBounds.y,
+		terminal.modelBounds.width, terminal.modelBounds.height);
+
+	var result = terminal.getPerimeterBounds(border);
+
+	terminal.setRect(real.x, real.y, real.width, real.height);
+	
+	return result;
+};
+
+/**
  * Function: getPerimeterBounds
  *
  * Returns the perimeter bounds for the given terminal, edge pair as an
@@ -2105,6 +2221,38 @@ mxGraphView.prototype.getPerimeterFunction = function(state)
 	}
 	
 	return null;
+};
+
+/**
+ * Function: getNextModelPoint
+ *
+ * Returns the nearest point in the list of absolute points or the center
+ * of the opposite terminal.
+ * 
+ * Parameters:
+ * 
+ * edge - <mxCellState> that represents the edge.
+ * opposite - <mxCellState> that represents the opposite terminal.
+ * source - Boolean indicating if the next point for the source or target
+ * should be returned.
+ */
+mxGraphView.prototype.getNextModelPoint = function(edge, opposite, source)
+{
+	var pts = edge.modelPoints;
+	var point = null;
+	
+	if (pts != null && pts.length >= 2)
+	{
+		var count = pts.length;
+		point = pts[(source) ? Math.min(1, count - 1) : Math.max(0, count - 2)];
+	}
+	
+	if (point == null && opposite != null)
+	{
+		point = new mxPoint(opposite.modelBounds.getCenterX(), opposite.modelBounds.getCenterY());
+	}
+	
+	return point;
 };
 
 /**
