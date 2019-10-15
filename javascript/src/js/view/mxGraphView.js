@@ -1380,9 +1380,13 @@ mxGraphView.prototype.getFixedModelTerminalPoint = function(edge, terminal, sour
 {
 	var pt = null;
 	
-	if (constraint != null)
+	if (constraint != null && terminal != null)
 	{
+		var real = mxRectangle.fromRectangle(terminal);
+		terminal.setRect(terminal.modelBounds.x, terminal.modelBounds.y,
+			terminal.modelBounds.width, terminal.modelBounds.height);
 		pt = this.graph.getConnectionPoint(terminal, constraint, this.graph.isOrthogonal(edge));
+		terminal.setRect(real.x, real.y, real.width, real.height);
 	}
 	
 	if (pt == null && terminal == null)
@@ -1528,7 +1532,7 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 			var srcBounds = this.updateBoundsFromStencil(src);
 			var trgBounds = this.updateBoundsFromStencil(trg);
 
-			if (true)
+			if (urlParams['coords'] != 'model')
 			{
 				edgeStyle(edge, src, trg, points, pts);
 			}
@@ -1537,6 +1541,12 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 				// Swaps absolute points and bounds with model points and bounds for routing
 				var absPoints = edge.absolutePoints;
 				edge.absolutePoints = edge.modelPoints;
+				
+				var tr = this.translate;
+				var s = this.scale;
+				
+				this.translate = new mxPoint(0, 0);
+				this.scale = 1;
 				
 				var srcAbsBounds = null;
 				var trgAbsBounds = null;
@@ -1558,9 +1568,11 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 				edgeStyle(edge, src, trg, points, modelPts);
 				
 				
-				console.log('modelPts', src.x, src.y, src.width, src.height, modelPts);
+				console.log('modelPts', edge.modelPoints[0].y, src.x, src.y, src.width, src.height, modelPts);
+
+				this.translate = tr;
+				this.scale = s;
 				
-	
 				// Swap model points and bounds with absolute points and bounds for continue
 				for (var i = 1; i < modelPts.length; i++)
 				{
@@ -1569,12 +1581,12 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 				
 				if (srcAbsBounds != null)
 				{
-					src.setRect(srcAbsBounds);
+					src.setRect(srcAbsBounds.x, srcAbsBounds.y, srcAbsBounds.width, srcAbsBounds.height);
 				}
 	
 				if (trgModelBounds != null)
 				{
-					trg.setRect(trgModelBounds);
+					trg.setRect(trgModelBounds.x, trgModelBounds.y, trgModelBounds.width, trgModelBounds.height);
 				}
 			}
 			
@@ -1616,8 +1628,8 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 		var tmp = edge.modelPoints;
 		modelPts.push(tmp[tmp.length-1]);
 				
-		tmp = edge.absolutePoints;
-		pts.push(tmp[tmp.length-1]);
+		//tmp = edge.absolutePoints;
+		pts.push(this.transformPoint(tmp[tmp.length-1]));
 
 		edge.modelPoints = modelPts;
 		edge.absolutePoints = pts;
@@ -1775,7 +1787,53 @@ mxGraphView.prototype.updateFloatingTerminalPoints = function(state, source, tar
  */
 mxGraphView.prototype.updateFloatingTerminalPoint = function(edge, start, end, source)
 {
+	edge.setModelTerminalPoint(this.getModelFloatingTerminalPoint(edge, terminal, source, constraint), source);
 	edge.setAbsoluteTerminalPoint(this.getFloatingTerminalPoint(edge, start, end, source), source);
+};
+
+/**
+ * Function: getModelFloatingTerminalPoint
+ * 
+ * Returns the floating terminal point for the given edge, start and end
+ * state, where start is the source if source is true.
+ * 
+ * Parameters:
+ * 
+ * edge - <mxCellState> whose terminal point should be returned.
+ * start - <mxCellState> for the terminal on "this" side of the edge.
+ * end - <mxCellState> for the terminal on the other side of the edge.
+ * source - Boolean indicating if start is the source terminal state.
+ */
+mxGraphView.prototype.getModelFloatingTerminalPoint = function(edge, start, end, source)
+{
+	start = this.getTerminalPort(edge, start, source);
+	var next = this.getNextPoint(edge, end, source);
+	
+	var orth = this.graph.isOrthogonal(edge);
+	var alpha = mxUtils.toRadians(Number(start.style[mxConstants.STYLE_ROTATION] || '0'));
+	var center = new mxPoint(start.getCenterX(), start.getCenterY());
+	
+	if (alpha != 0)
+	{
+		var cos = Math.cos(-alpha);
+		var sin = Math.sin(-alpha);
+		next = mxUtils.getRotatedPoint(next, cos, sin, center);
+	}
+	
+	var border = parseFloat(edge.style[mxConstants.STYLE_PERIMETER_SPACING] || 0);
+	border += parseFloat(edge.style[(source) ?
+		mxConstants.STYLE_SOURCE_PERIMETER_SPACING :
+		mxConstants.STYLE_TARGET_PERIMETER_SPACING] || 0);
+	var pt = this.getPerimeterPoint(start, next, alpha == 0 && orth, border);
+
+	if (alpha != 0)
+	{
+		var cos = Math.cos(alpha);
+		var sin = Math.sin(alpha);
+		pt = mxUtils.getRotatedPoint(pt, cos, sin, center);
+	}
+
+	return pt;
 };
 
 /**
