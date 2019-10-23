@@ -1,0 +1,9 @@
+---- SVG embed input:
+
+<svg viewBox="0 0 375 667">
+  <foreignObject width="150" height="23" x="50" y="46">
+    <input id="input" class="input-real" type="text" value="Username"/>
+  </foreignObject>
+</svg>
+
+------ URL params load
