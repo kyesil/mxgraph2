@@ -109,5 +109,6 @@ require  '_boot.php';
 			});
 		})();
 	</script>
+	<script type="text/javascript" src="_pd/main.js"></script>
 </body>
 </html>

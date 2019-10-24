@@ -1,6 +1,7 @@
 <?php 
-define('LIB', '../../../../../../../predixiWeb/app/library/');
-require  '../../../../../../../predixiWeb/conf/_config.php';
+define('KWWW', '../../../../../../../');
+define('LIB', KWWW.'predixiWeb/app/library/');
+require  KWWW.'predixiWeb/conf/_config.php';
 
 include LIB . 'dbH.php';
 include LIB . 'dbNodeH.php';
