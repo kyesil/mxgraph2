@@ -47,4 +47,55 @@ var graphCreateSvgImageExport = Graph.prototype.createSvgImageExport;
 	};
 
 	};
-	svgExport();
+svgExport();
+
+EditorUi.prototype.save = function(name)
+{
+	if (name != null)
+	{
+		if (this.editor.graph.isEditing())
+		{
+			this.editor.graph.stopEditing();
+		}
+		
+		var xml = mxUtils.getXml(this.editor.getGraphXml());
+		
+		try
+		{
+			if (Editor.useLocalStorage)
+			{
+				if (localStorage.getItem(name) != null &&
+					!mxUtils.confirm(mxResources.get('replaceIt', [name])))
+				{
+					return;
+				}
+
+				localStorage.setItem(name, xml);
+				this.editor.setStatus(mxUtils.htmlEntities(mxResources.get('saved')) + ' ' + new Date());
+			}
+			else
+			{
+				if (xml.length < MAX_REQUEST_SIZE)
+				{
+					new mxXmlRequest(SAVE_URL, 'filename=' + encodeURIComponent(name) +
+						'&xml=' + encodeURIComponent(xml)).simulate(document, '_blank');
+				}
+				else
+				{
+					mxUtils.alert(mxResources.get('drawingTooLarge'));
+					mxUtils.popup(xml);
+					
+					return;
+				}
+			}
+
+			this.editor.setModified(false);
+			this.editor.setFilename(name);
+			this.updateDocumentTitle();
+		}
+		catch (e)
+		{
+			this.editor.setStatus(mxUtils.htmlEntities(mxResources.get('errorSavingFile')));
+		}
+	}
+};
