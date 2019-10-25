@@ -1,6 +1,7 @@
 <?php 
 define('KWWW', '../../../../../../../');
 define('LIB', KWWW.'predixiWeb/app/library/');
+define('PD', KWWW.'StaticWeb/www/R/pd/');
 require  KWWW.'predixiWeb/conf/_config.php';
 
 include LIB . 'dbH.php';

@@ -57,8 +57,9 @@ EditorUi.prototype.save = function(name)
 		{
 			this.editor.graph.stopEditing();
 		}
-		
+
 		var xml = mxUtils.getXml(this.editor.getGraphXml());
+		var svg = mxUtils.getXml(this.editor.graph.getSvg(null, 1, 0))
 		
 		try
 		{
@@ -75,10 +76,12 @@ EditorUi.prototype.save = function(name)
 			}
 			else
 			{
-				if (xml.length < MAX_REQUEST_SIZE)
+				if (xml.length < MAX_REQUEST_SIZE*1.5)
 				{
+					localStorage.setItem(name, xml);
 					new mxXmlRequest(SAVE_URL, 'filename=' + encodeURIComponent(name) +
-						'&xml=' + encodeURIComponent(xml)).simulate(document, '_blank');
+						'&xml=' + encodeURIComponent(xml)+'&svg=' + encodeURIComponent(svg)).send();
+						this.editor.setStatus(mxUtils.htmlEntities(name+ " - "+mxResources.get('saved')) + ' ' + new Date());
 				}
 				else
 				{

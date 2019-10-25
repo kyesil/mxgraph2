@@ -7,3 +7,10 @@
 </svg>
 
 ------ URL params load
+
+Graph.prototype.getSvg
+ExportDialog.exportFile (Dialogs.js:1433)
+
+mxXmlRequest.simulate (mxXmlRequest.js:405)
+EditorUi.save (main.js:81)
+(anonymous) (EditorUi.js:3658)
