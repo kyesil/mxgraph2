@@ -63,19 +63,9 @@ EditorUi.prototype.save = function(name)
 		
 		try
 		{
-			if (Editor.useLocalStorage)
+			if (this.editor.modified)
 			{
-				if (localStorage.getItem(name) != null &&
-					!mxUtils.confirm(mxResources.get('replaceIt', [name])))
-				{
-					return;
-				}
-
-				localStorage.setItem(name, xml);
-				this.editor.setStatus(mxUtils.htmlEntities(mxResources.get('saved')) + ' ' + new Date());
-			}
-			else
-			{
+			
 				if (xml.length < MAX_REQUEST_SIZE*1.5)
 				{
 					localStorage.setItem(name, xml);
@@ -100,5 +90,33 @@ EditorUi.prototype.save = function(name)
 		{
 			this.editor.setStatus(mxUtils.htmlEntities(mxResources.get('errorSavingFile')));
 		}
+	}
+};
+
+
+EditorUi.prototype.saveFile = function(forceDialog)
+{
+	if (!forceDialog && this.editor.filename != null)
+	{
+		this.save(this.editor.getOrCreateFilename());
+	}
+	else
+	{
+		var dlg = new FilenameDialog(this, this.editor.getOrCreateFilename(), mxResources.get('save'), mxUtils.bind(this, function(name)
+		{
+			this.save(name);
+		}), null, mxUtils.bind(this, function(name)
+		{
+			if (name != null && name.length > 0)
+			{
+				return true;
+			}
+			
+			mxUtils.confirm(mxResources.get('invalidName'));
+			
+			return false;
+		}));
+		this.showDialog(dlg.container, 300, 100, true, true);
+		dlg.init();
 	}
 };

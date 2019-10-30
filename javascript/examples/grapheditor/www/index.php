@@ -1,5 +1,6 @@
 <?php 
-require  '_boot.php';
+
+require  '../../../../_SCREEN/_boot.php';
 ?>
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=5,IE=9" ><![endif]-->
 <!DOCTYPE html>
@@ -109,6 +110,6 @@ require  '_boot.php';
 			});
 		})();
 	</script>
-	<script type="text/javascript" src="_pd/main.js"></script>
+	<script type="text/javascript" src="_pjs/main.js"></script>
 </body>
 </html>

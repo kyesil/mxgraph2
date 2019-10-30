@@ -1,5 +1,5 @@
 <?php 
-require  '../../../../_SCREEN/_boot.php';
+require  '_boot.php';
 
 $file_handle = fopen(PD.escapeshellcmd('screen.xml'), 'w');
 fwrite($file_handle, urldecode($_POST["xml"]));
