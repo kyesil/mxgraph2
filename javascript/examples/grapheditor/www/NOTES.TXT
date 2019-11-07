@@ -14,3 +14,16 @@ ExportDialog.exportFile (Dialogs.js:1433)
 mxXmlRequest.simulate (mxXmlRequest.js:405)
 EditorUi.save (main.js:81)
 (anonymous) (EditorUi.js:3658)
+
+
+
+--- run extra code on prototype: -----
+
+var editorUiInit = EditorUi.prototype.init;
+			
+			EditorUi.prototype.init = function()
+			{
+				editorUiInit.apply(this, arguments); // run original init action
+				--- write extra code -- 
+        --- write extra code -- 
+----

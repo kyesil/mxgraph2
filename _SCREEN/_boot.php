@@ -14,7 +14,6 @@ include KLIB . 'dbNodeH.php';
 include KLIB . 'sessH.php';
 
 sessH::start(TRUE);
-echo PDW;
 
 // if (!isset($_SESSION['user']))
 //     exit('notlogin');
