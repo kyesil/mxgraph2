@@ -38,7 +38,6 @@ require  '_boot.php';
 	</script>
 	<style>
 	</style>
-	<link href="https://cdn.jsdelivr.net/npm/animate.css" rel="stylesheet" type="text/css">
 	<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/all.min.css" rel="stylesheet" type="text/css">
 	<link href="/R/css/shared.css" rel="stylesheet" type="text/css">
 	<link href="r/main.css" rel="stylesheet" type="text/css">
@@ -47,46 +46,51 @@ require  '_boot.php';
 <body>
 	<div id="app">
 		<div class="header">
-			<div class="menu_item" onclick="backClick(0);" v-if="vpage!=='main'">
+			<div class="menu" onclick="backClick(0);" v-if="vpage!=='screens'">
 				<p>Back</p>
-				<div class="icon fa fa-arrow-alt-circle-left fa-2x"></div>
+				<div class="icon fa fa-arrow-alt-circle-left"></div>
 			</div>
-			<div class="menu_item" onclick="addClick(0);">
+			<div class="menu" onclick="addClick(0);" v-if="vpage==='screens'||vpage==='pages'">
 				<p>Add</p>
-				<div class="icon fa fa-folder-plus fa-2x"></div>
+				<div class="icon fa fa-folder-plus"></div>
 			</div>
-			<div class="menu_item" onclick="refreshClick(0);">
+			<div class="menu" onclick="refreshClick(0);" v-if="vpage==='screens'||vpage==='pages'">
 				<p>Refresh</p>
-				<div class="icon fa fa-sync fa-2x"></div>
+				<div class="icon fa fa-sync"></div>
 			</div>
 			<span v-html="vtitle"></span>
 		</div>
 
-		<transition name="fade" mode="out-in">
-			<div class="cards_wrap" id="screens_wrap" v-if="vpage==='main'">
-				<div v-for="sc in screens" v-bind:id="sc.id" class="card" v-on:click="scCardClick(sc.id,sc.name);">
-					<h4>{{sc.name}}</h4>
-					<p class="pcount"><b>{{sc.spcount}}</b> pages</p>
-					<p class="lcount"><b></b> linked nodes</p>
-					<div class="icon fa fa-folder-open fa-2x"></div>
-				</div>
+		<div class="cards_wrap" id="screens_wrap" v-if="vpage==='screens'">
+			<div v-for="sc in screens" v-bind:id="sc.id" class="card">
+				<h4>{{sc.name}}</h4>
+				<p class="pcount"><b>{{sc.spcount}}</b> pages</p>
+				<p class="lcount"><b></b> linked nodes</p>
+				<div class="icon fa fa-edit" v-on:click="scEditClick(sc.id,sc.name);"></div>
+				<div class="icon fa fa-folder-open" v-on:click="scOpenClick(sc.id,sc.name);"></div>
 			</div>
+		</div>
 
-			<div class="cards_wrap" id="pages_wrap" v-if="vpage==='pages'">
-				<div v-for="sp in pages" v-bind:id="sp.id" class="card" v-on:click="pgCardClick(sp.id,sp.name);">
-					<h4>{{sp.name}}</h4>
-
-					<div class="icon fa fa-edit fa-2x"></div>
-
-				</div>
-				<h1 v-if="pages.length===0">No pages</h1>
+		<div class="cards_wrap" id="pages_wrap" v-if="vpage==='pages'">
+			<div v-for="pg in pages" v-bind:id="pg.id" class="card">
+				<h4>{{pg.name}}</h4>
+				<div class="icon fa fa-edit" v-on:click="pgEditClick(pg.id);"></div>
+				<div class="icon fa fa-folder-open" v-on:click="pgOpenClick(pg.id);"></div>
 			</div>
+			<h1 v-if="pages.length===0">No pages</h1>
+		</div>
 
+		<div class="dialog" v-if="vpage==='addsc'||vpage==='addpg'">
+			<h1 v-html="dtitle"></h1>
+			<form>
+				<div class="field"> <label >ID: </label> <input name=id type="text" disabled> </div>
+				<div class="field"> <label >Screen ID: </label> <input name=sid type="text" disabled> </div>
+				<div class="field"> <label >Name: </label> <input name=id type="text" > </div>
+				<div class="field"> <label >Author Path: </label> <input name=authpath type="text" > </div>
+				<div class="field"> <label >Type: </label> <input name=type type="text" > </div>
+			</form>
+		</div>
 
-			<div class="card dialog_wrap"  v-if="vpage==='add'">
-			<h1 >Dialog</h1>
-			</div>
-		</transition>
 	</div>
 	<script src="https://unpkg.com/vue/dist/vue.js"></script>
 	<script type="text/javascript" src="r/main.js"></script>
