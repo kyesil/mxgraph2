@@ -19,7 +19,7 @@ var app = new Vue({
             alert(id);
         },
         scDrawClick: function (id, name) {
-
+            alert(id);
         },
         pgEditClick: function pgCardClick(id, name) {
             alert(id);
