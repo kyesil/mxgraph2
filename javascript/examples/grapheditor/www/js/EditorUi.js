@@ -1373,9 +1373,19 @@ EditorUi.prototype.initClipboard = function()
 };
 
 /**
- * Initializes the infinite canvas.
+ * Delay between zoom steps when not using preview.
  */
 EditorUi.prototype.lazyZoomDelay = 20;
+
+/**
+ * Delay before update of DOM when using preview.
+ */
+EditorUi.prototype.wheelZoomDelay = 400;
+
+/**
+ * Delay before update of DOM when using preview.
+ */
+EditorUi.prototype.buttonZoomDelay = 600;
 
 /**
  * Initializes the infinite canvas.
@@ -2065,27 +2075,106 @@ EditorUi.prototype.initCanvas = function()
 	
 	// Accumulates the zoom factor while the rendering is taking place
 	// so that not the complete sequence of zoom steps must be painted
-	graph.updateZoomTimeout = null;
-	graph.cumulativeZoomFactor = 1;
-	
-	var cursorPosition = null;
-	var mainGroup = graph.view.getDrawPane();
 	var bgGroup = graph.view.getBackgroundPane();
-
-	graph.lazyZoom = function(zoomIn, ignoreCursorPosition)
+	var mainGroup = graph.view.getDrawPane();
+	graph.cumulativeZoomFactor = 1;
+	var updateZoomTimeout = null;
+	var cursorPosition = null;
+	var scrollPosition = null;
+	
+	var scheduleZoom = function(delay)
 	{
-		if (this.updateZoomTimeout != null)
+		if (updateZoomTimeout != null)
 		{
-			window.clearTimeout(this.updateZoomTimeout);
+			window.clearTimeout(updateZoomTimeout);
 		}
 
-		// Switches to 1% zoom steps below 15%
-		// Lower bound depends on rounding below
+		window.setTimeout(function()
+		{
+			if (!graph.isMouseDown)
+			{
+				updateZoomTimeout = window.setTimeout(mxUtils.bind(this, function()
+		        {
+		        	if (graph.isFastZoomEnabled())
+		    		{
+		            	// Transforms background page
+		  				if (graph.view.backgroundPageShape != null && graph.view.backgroundPageShape.node != null)
+		  				{
+		  					mxUtils.setPrefixedStyle(graph.view.backgroundPageShape.node.style, 'transform-origin', null);
+		  					mxUtils.setPrefixedStyle(graph.view.backgroundPageShape.node.style, 'transform', null);
+		  				}
+		  				
+		  				// Transforms graph and background image
+		        		mainGroup.removeAttribute('transform-origin');
+		            	mainGroup.removeAttribute('transform');
+		            	bgGroup.removeAttribute('transform-origin');
+		            	bgGroup.removeAttribute('transform');
+		            	
+		            	// Shows interactive elements
+		            	graph.view.getDecoratorPane().style.opacity = '';
+		            	graph.view.getOverlayPane().style.opacity = '';
+		    		}
+		        	
+		        	var sp = new mxPoint(graph.container.scrollLeft, graph.container.scrollTop);
+		        	var prev = graph.view.scale;
+		            graph.zoom(graph.cumulativeZoomFactor);
+		            var s = graph.view.scale;
+		            
+		            if (s != prev)
+		            {
+			            var offset = mxUtils.getOffset(graph.container);
+			            var dx = 0;
+			            var dy = 0;
+			            
+			            if (cursorPosition != null)
+			            {
+			                dx = graph.container.offsetWidth / 2 - cursorPosition.x + offset.x;
+			                dy = graph.container.offsetHeight / 2 - cursorPosition.y + offset.y;
+			            }
+		
+			            if (scrollPosition != null)
+			            {
+			            	dx += sp.x - scrollPosition.x;
+			            	dy += sp.y - scrollPosition.y;
+			            }
+			            
+		                if (resize != null)
+		                {
+		                	ui.chromelessResize(false, null, dx * (graph.cumulativeZoomFactor - 1),
+		                		dy * (graph.cumulativeZoomFactor - 1));
+		                }
+		                
+		                if (mxUtils.hasScrollbars(graph.container) && (dx != 0 || dy != 0))
+		                {
+		                    graph.container.scrollLeft -= dx * (graph.cumulativeZoomFactor - 1);
+		                    graph.container.scrollTop -= dy * (graph.cumulativeZoomFactor - 1);
+		                }
+		            }
+		            
+		            graph.cumulativeZoomFactor = 1;
+		            updateZoomTimeout = null;
+		            scrollPosition = null;
+		            cursorPosition = null;
+		        }), (delay != null) ? delay : ((graph.isFastZoomEnabled()) ? ui.wheelZoomDelay : ui.lazyZoomDelay));
+			}
+		}, 0);
+	};
+
+	graph.lazyZoom = function(zoomIn, ignoreCursorPosition, delay)
+	{
+		if (ignoreCursorPosition)
+		{
+			cursorPosition = new mxPoint(
+				graph.container.offsetLeft + graph.container.clientWidth / 2,
+				graph.container.offsetTop + graph.container.clientHeight / 2);
+		}
+		
+		// Switches to 5% zoom steps below 15%
 		if (zoomIn)
 		{
-			if (this.view.scale * this.cumulativeZoomFactor < 0.15)
+			if (this.view.scale * this.cumulativeZoomFactor <= 0.15)
 			{
-				this.cumulativeZoomFactor = (this.view.scale + 0.01) / this.view.scale;
+				this.cumulativeZoomFactor *= (this.view.scale + 0.05) / this.view.scale;
 			}
 			else
 			{
@@ -2099,7 +2188,7 @@ EditorUi.prototype.initCanvas = function()
 		{
 			if (this.view.scale * this.cumulativeZoomFactor <= 0.15)
 			{
-				this.cumulativeZoomFactor = (this.view.scale - 0.01) / this.view.scale;
+				this.cumulativeZoomFactor *= (this.view.scale - 0.05) / this.view.scale;
 			}
 			else
 			{
@@ -2109,12 +2198,15 @@ EditorUi.prototype.initCanvas = function()
 				this.cumulativeZoomFactor = Math.round(this.view.scale * this.cumulativeZoomFactor * 20) / 20 / this.view.scale;
 			}
 		}
-		
-		if (urlParams['zoom'] == 'fast')
+
+		this.cumulativeZoomFactor = Math.max(0.05, Math.min(this.view.scale * this.cumulativeZoomFactor, 160)) / this.view.scale;
+
+		if (graph.isFastZoomEnabled())
 		{
-			var cx = (ignoreCursorPosition) ? graph.container.scrollWidth / 2 :
+			scrollPosition = new mxPoint(graph.container.scrollLeft, graph.container.scrollTop);
+			var cx = (ignoreCursorPosition) ? graph.container.scrollLeft + graph.container.clientWidth / 2 :
 				cursorPosition.x + graph.container.scrollLeft - graph.container.offsetLeft;
-			var cy = (ignoreCursorPosition) ? graph.container.scrollHeight / 2 :
+			var cy = (ignoreCursorPosition) ? graph.container.scrollTop + graph.container.clientHeight / 2 :
 				cursorPosition.y + graph.container.scrollTop - graph.container.offsetTop;
 			mainGroup.setAttribute('transform-origin', cx + ' ' + cy);
 			mainGroup.setAttribute('transform', 'scale(' +
@@ -2123,73 +2215,60 @@ EditorUi.prototype.initCanvas = function()
 			bgGroup.setAttribute('transform', 'scale(' +
 					this.cumulativeZoomFactor + ')');
 
-			var page = graph.view.backgroundPageShape.node;
+			if (graph.view.backgroundPageShape != null && graph.view.backgroundPageShape.node != null)
+			{
+				var page = graph.view.backgroundPageShape.node;
+				
+				mxUtils.setPrefixedStyle(page.style, 'transform-origin',
+					((ignoreCursorPosition) ? ((graph.container.clientWidth / 2 + graph.container.scrollLeft -
+						page.offsetLeft) + 'px') : ((cursorPosition.x + graph.container.scrollLeft -
+						page.offsetLeft - graph.container.offsetLeft) + 'px')) + ' ' +
+					((ignoreCursorPosition) ? ((graph.container.clientHeight / 2 + graph.container.scrollTop -
+						page.offsetTop) + 'px') : ((cursorPosition.y + graph.container.scrollTop -
+						page.offsetTop - graph.container.offsetTop) + 'px')));
+				mxUtils.setPrefixedStyle(page.style, 'transform',
+					'scale(' + this.cumulativeZoomFactor + ')');
+			}
 
-			mxUtils.setPrefixedStyle(page.style, 'transform-origin',
-				(ignoreCursorPosition) ? '50%' : ((cursorPosition.x + graph.container.offsetLeft - page.offsetLeft) + 'px') + ' ' +
-				(ignoreCursorPosition) ? '50%' : ((cursorPosition.y - page.offsetTop) + 'px'));
-			mxUtils.setPrefixedStyle(page.style, 'transform',
-				'scale(' + this.cumulativeZoomFactor + ')');
-
-			graph.view.getOverlayPane().style.opacity = '0';
 			graph.view.getDecoratorPane().style.opacity = '0';
-			console.log('here', this.cumulativeZoomFactor, cx, page.offsetLeft, page.offsetWidth);
+			graph.view.getOverlayPane().style.opacity = '0';
+			
+			if (ui.hoverIcons != null)
+			{
+				ui.hoverIcons.reset();
+			}
 		}
 		
-		this.cumulativeZoomFactor = Math.max(0.01, Math.min(this.view.scale * this.cumulativeZoomFactor, 160) / this.view.scale);
-		
-        this.updateZoomTimeout = window.setTimeout(mxUtils.bind(this, function()
-        {
-        	if (urlParams['zoom'] == 'fast')
-    		{
-        		mainGroup.removeAttribute('transform-origin');
-            	mainGroup.removeAttribute('transform');
-            	bgGroup.removeAttribute('transform-origin');
-            	bgGroup.removeAttribute('transform');
-            	graph.view.getOverlayPane().style.opacity = '';
-            	graph.view.getDecoratorPane().style.opacity = '';
-    			mxUtils.setPrefixedStyle(graph.view.backgroundPageShape.node.style, 'transform-origin', null);
-    			mxUtils.setPrefixedStyle(graph.view.backgroundPageShape.node.style, 'transform', null);
-    		}
-        	
-            var offset = mxUtils.getOffset(graph.container);
-            var dx = 0;
-            var dy = 0;
-            
-            if (cursorPosition != null)
-            {
-                dx = graph.container.offsetWidth / 2 - cursorPosition.x + offset.x;
-                dy = graph.container.offsetHeight / 2 - cursorPosition.y + offset.y;
-            }
-
-            var prev = this.view.scale;
-            this.zoom(this.cumulativeZoomFactor);
-            var s = this.view.scale;
-            
-            if (s != prev)
-            {
-                if (resize != null)
-                {
-                		ui.chromelessResize(false, null, dx * (this.cumulativeZoomFactor - 1),
-                				dy * (this.cumulativeZoomFactor - 1));
-                }
-                
-                if (mxUtils.hasScrollbars(graph.container) && (dx != 0 || dy != 0))
-                {
-                    graph.container.scrollLeft -= dx * (this.cumulativeZoomFactor - 1);
-                    graph.container.scrollTop -= dy * (this.cumulativeZoomFactor - 1);
-                }
-            }
-            
-            this.cumulativeZoomFactor = 1;
-            this.updateZoomTimeout = null;
-        }), (urlParams['zoom'] == 'fast') ? 500 : this.lazyZoomDelay);
+		scheduleZoom(delay);
 	};
 	
+	// Holds back repaint until after mouse gestures
+	mxEvent.addGestureListeners(graph.container, function(evt)
+	{
+		if (updateZoomTimeout != null)
+		{
+			window.clearTimeout(updateZoomTimeout);
+		}
+	}, null, function(evt)
+	{
+		if (graph.cumulativeZoomFactor != 1)
+		{
+			scheduleZoom(0);
+		}
+	});
+	
+	// Holds back repaint until scroll ends
+	mxEvent.addListener(graph.container, 'scroll', function()
+	{
+		if (updateZoomTimeout && !graph.isMouseDown && graph.cumulativeZoomFactor != 1)
+		{
+			scheduleZoom(0);
+		}
+	});
+
 	mxEvent.addMouseWheelListener(mxUtils.bind(this, function(evt, up)
 	{
-		// Ctrl+wheel (or pinch on touchpad) is a native browser zoom event is OS X
-		// LATER: Add support for zoom via pinch on trackpad for Chrome in OS X
+		// Add Ctrl+wheel (or pinch on trackpad) native browser zoom event for macOS
 		if ((this.dialogs == null || this.dialogs.length == 0) && graph.isZoomWheelEvent(evt))
 		{
 			var source = mxEvent.getSource(evt);
@@ -2198,7 +2277,7 @@ EditorUi.prototype.initCanvas = function()
 			{
 				if (source == graph.container)
 				{
-					cursorPosition = new mxPoint(mxEvent.getClientX(evt), mxEvent.getClientY(evt));
+					cursorPosition = new mxPoint(mxEvent.getClientX(evt), mxEvent.getClientY(evt));;
 					graph.lazyZoom(up);
 					mxEvent.consume(evt);
 			

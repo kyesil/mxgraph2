@@ -647,6 +647,18 @@ mxVertexHandler.prototype.start = function(x, y, index)
 			}
 		}
 		
+		if (index == mxEvent.ROTATION_HANDLE)
+		{
+			// With the rotation handle in a corner, need the angle and distance
+			var pos = this.getRotationHandlePosition();
+			
+			var dx = pos.x - this.state.getCenterX();
+			var dy = pos.y - this.state.getCenterY();
+			
+			this.startAngle = (dx != 0) ? Math.atan(dy / dx) * 180 / Math.PI + 90 : ((dy < 0) ? 180 : 0);
+			this.startDist = Math.sqrt(dx * dx + dy * dy);
+		}
+
 		// Prepares the handles for live preview
 		if (this.livePreviewActive)
 		{
@@ -860,14 +872,28 @@ mxVertexHandler.prototype.rotateVertex = function(me)
 	{
 		this.currentAlpha -= 180;
 	}
-
+	
+	this.currentAlpha -= this.startAngle;
+	
 	// Rotation raster
 	if (this.rotationRaster && this.graph.isGridEnabledEvent(me.getEvent()))
 	{
 		var dx = point.x - this.state.getCenterX();
 		var dy = point.y - this.state.getCenterY();
-		var dist = Math.abs(Math.sqrt(dx * dx + dy * dy) - 20) * 3;
-		var raster = Math.max(1, 5 * Math.min(3, Math.max(0, Math.round(80 / Math.abs(dist)))));
+		var dist = Math.sqrt(dx * dx + dy * dy);
+		
+		if (dist - this.startDist < 2)
+		{
+			raster = 15;
+		}
+		else if (dist - this.startDist < 25)
+		{
+			raster = 5;
+		}
+		else
+		{
+			raster = 1;
+		}
 		
 		this.currentAlpha = Math.round(this.currentAlpha / raster) * raster;
 	}
