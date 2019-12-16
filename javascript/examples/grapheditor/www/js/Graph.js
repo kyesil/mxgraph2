@@ -687,8 +687,8 @@ Graph = function(container, model, renderHint, stylesheet, themes, standalone)
 	    var isForceRubberBandEvent = rubberband.isForceRubberbandEvent;
 	    rubberband.isForceRubberbandEvent = function(me)
 	    {
-		    	return isForceRubberBandEvent.apply(this, arguments) ||
-		    		(mxClient.IS_CHROMEOS && mxEvent.isShiftDown(me.getEvent())) ||
+		    	return (isForceRubberBandEvent.apply(this, arguments) && !mxEvent.isShiftDown(me.getEvent()) &&
+		    		!mxEvent.isControlDown(me.getEvent())) || (mxClient.IS_CHROMEOS && mxEvent.isShiftDown(me.getEvent())) ||
 		    		(mxUtils.hasScrollbars(this.graph.container) && mxClient.IS_FF &&
 		    		mxClient.IS_WIN && me.getState() == null && mxEvent.isTouchEvent(me.getEvent()));
 	    };
@@ -1358,7 +1358,7 @@ Graph.prototype.init = function(container)
 	 */
 	Graph.prototype.isFastZoomEnabled = function()
 	{
-		return mxClient.IS_GC && urlParams['zoom'] != 'nocss' && !this.mathEnabled &&
+		return this.scrollbars && urlParams['zoom'] != 'nocss' && !this.mathEnabled &&
 			!mxClient.NO_FO && !this.useCssTransforms;
 	};
 	
@@ -1992,12 +1992,12 @@ Graph.prototype.isReplacePlaceholders = function(cell)
 /**
  * Returns true if the given mouse wheel event should be used for zooming. This
  * is invoked if no dialogs are showing and returns true with Alt or Control
- * (except macOS) is pressed.
+ * (or cmd in macOS only) is pressed.
  */
 Graph.prototype.isZoomWheelEvent = function(evt)
 {
 	return mxEvent.isAltDown(evt) || (mxEvent.isMetaDown(evt) && mxClient.IS_MAC) ||
-		(mxEvent.isControlDown(evt) && !mxClient.IS_MAC);
+		mxEvent.isControlDown(evt);
 };
 
 /**
@@ -2516,7 +2516,8 @@ Graph.prototype.connectVertex = function(source, direction, length, evt, forceCl
 	this.model.beginUpdate();
 	try
 	{
-		var realTarget = target;
+		var swimlane = target != null && this.isSwimlane(target);
+		var realTarget = (!swimlane) ? target : null;
 		
 		if (realTarget == null && duplicate)
 		{
@@ -2552,6 +2553,12 @@ Graph.prototype.connectVertex = function(source, direction, length, evt, forceCl
 			{
 				geo.x = pt.x - geo.width / 2;
 				geo.y = pt.y - geo.height / 2;
+			}
+			
+			if (swimlane)
+			{
+				this.addCells([realTarget], target, null, null, null, true);
+				target = null;
 			}
 		}
 		
@@ -3359,12 +3366,17 @@ HoverIcons.prototype.init = function()
 
 	this.elts = [this.arrowUp, this.arrowRight, this.arrowDown, this.arrowLeft];
 
+	this.resetHandler = mxUtils.bind(this, function()
+	{
+		this.reset();
+	});
+	
 	this.repaintHandler = mxUtils.bind(this, function()
 	{
 		this.repaint();
 	});
 
-	this.graph.selectionModel.addListener(mxEvent.CHANGE, this.repaintHandler);
+	this.graph.selectionModel.addListener(mxEvent.CHANGE, this.resetHandler);
 	this.graph.model.addListener(mxEvent.CHANGE, this.repaintHandler);
 	this.graph.view.addListener(mxEvent.SCALE_AND_TRANSLATE, this.repaintHandler);
 	this.graph.view.addListener(mxEvent.TRANSLATE, this.repaintHandler);
@@ -3904,7 +3916,7 @@ HoverIcons.prototype.repaint = function()
 					top = null;
 					bottom = null;
 				}
-				
+
 				var currentGeo = this.graph.getCellGeometry(this.currentState.cell);
 				
 				var checkCollision = mxUtils.bind(this, function(cell, arrow)
@@ -3913,8 +3925,8 @@ HoverIcons.prototype.repaint = function()
 					
 					// Ignores collision if vertex is more than 3 times the size of this vertex
 					if (cell != null && !this.graph.model.isAncestor(cell, this.currentState.cell) &&
-						(geo == null || currentGeo == null || (geo.height < 6 * currentGeo.height &&
-						geo.width < 6 * currentGeo.width)))
+						!this.graph.isSwimlane(cell) && (geo == null || currentGeo == null ||
+						(geo.height < 3 * currentGeo.height && geo.width < 3 * currentGeo.width)))
 					{
 						arrow.style.visibility = 'hidden';
 					}
@@ -8007,7 +8019,7 @@ if (typeof mxVertexHandler != 'undefined')
 		 */
 		mxGraphHandler.prototype.updateHint = function(me)
 		{
-			if (this.shape != null)
+			if (this.pBounds != null && (this.shape != null || this.livePreviewActive))
 			{
 				if (this.hint == null)
 				{
@@ -8022,9 +8034,11 @@ if (typeof mxVertexHandler != 'undefined')
 				var unit = this.graph.view.unit;
 				
 				this.hint.innerHTML = formatHintText(x, unit) + ', ' + formatHintText(y, unit);
-	
-				this.hint.style.left = (this.shape.bounds.x + Math.round((this.shape.bounds.width - this.hint.clientWidth) / 2)) + 'px';
-				this.hint.style.top = (this.shape.bounds.y + this.shape.bounds.height + 12) + 'px';
+				
+				this.hint.style.left = (this.pBounds.x + this.currentDx +
+					Math.round((this.pBounds.width - this.hint.clientWidth) / 2)) + 'px';
+				this.hint.style.top = (this.pBounds.y + this.currentDy +
+					this.pBounds.height + Editor.hintOffset) + 'px';
 			}
 		};
 	
@@ -8133,7 +8147,7 @@ if (typeof mxVertexHandler != 'undefined')
 				}
 				
 				this.hint.style.left = bb.x + Math.round((bb.width - this.hint.clientWidth) / 2) + 'px';
-				this.hint.style.top = (bb.y + bb.height + 12) + 'px';
+				this.hint.style.top = (bb.y + bb.height + Editor.hintOffset) + 'px';
 				
 				if (this.linkHint != null)
 				{
@@ -8221,7 +8235,7 @@ if (typeof mxVertexHandler != 'undefined')
 			}
 			
 			this.hint.style.left = Math.round(me.getGraphX() - this.hint.clientWidth / 2) + 'px';
-			this.hint.style.top = (Math.max(me.getGraphY(), point.y) + this.state.view.graph.gridSize) + 'px';
+			this.hint.style.top = (Math.max(me.getGraphY(), point.y) + Editor.hintOffset) + 'px';
 			
 			if (this.linkHint != null)
 			{
@@ -8707,6 +8721,7 @@ if (typeof mxVertexHandler != 'undefined')
 			var states = mxGraphHandlerGetGuideStates.apply(this, arguments);
 			var result = [];
 			
+			// NOTE: Could do via isStateIgnored hook
 			for (var i = 0; i < states.length; i++)
 			{
 				if (mxUtils.getValue(states[i].style, 'part', '0') != '1')
@@ -9039,8 +9054,7 @@ if (typeof mxVertexHandler != 'undefined')
 				}
 				
 				this.linkHint.style.left = Math.max(0, Math.round(rs.x + (rs.width - this.linkHint.clientWidth) / 2)) + 'px';
-				this.linkHint.style.top = Math.round(b + this.verticalOffset / 2 + 6 +
-					this.state.view.graph.tolerance) + 'px';
+				this.linkHint.style.top = Math.round(b + this.verticalOffset / 2 + Editor.hintOffset) + 'px';
 			}
 		};
 		
@@ -9089,7 +9103,7 @@ if (typeof mxVertexHandler != 'undefined')
 					}
 					
 					this.linkHint.style.left = Math.max(0, Math.round(b.x + (b.width - this.linkHint.clientWidth) / 2)) + 'px';
-					this.linkHint.style.top = Math.round(b.y + b.height + 6 + this.state.view.graph.tolerance) + 'px';
+					this.linkHint.style.top = Math.round(b.y + b.height + Editor.hintOffset) + 'px';
 				}
 			}
 		};
