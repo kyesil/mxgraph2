@@ -120,7 +120,14 @@ var mxClient =
   	IS_SF: navigator.userAgent.indexOf('AppleWebKit/') >= 0 &&
   		navigator.userAgent.indexOf('Chrome/') < 0 &&
   		navigator.userAgent.indexOf('Edge/') < 0,
-  	
+  	  	
+	/**
+	 * Variable: IS_ANDROID
+	 * 
+	 * Returns true if the user agent contains Android.
+	 */
+  	IS_ANDROID: navigator.userAgent.indexOf('Android') >= 0,
+
 	/**
 	 * Variable: IS_IOS
 	 * 
@@ -140,7 +147,7 @@ var mxClient =
   		{
   			var v = (navigator.appVersion).match(/OS (\d+)_(\d+)_?(\d+)?/);
   			
-  			if (v.length > 0)
+  			if (v != null && v.length > 0)
   			{
   				return parseInt(v[1]);
   			}
@@ -374,6 +381,15 @@ var mxClient =
 		document.write('<script src="'+src+'"></script>');
 	}
 };
+
+/**
+ * Detects desktop mode on iPad Pro which should block event handling like iOS 12.
+ */
+if (mxClient.IS_SF && mxClient.IS_TOUCH && !mxClient.IS_IOS)
+{
+	mxClient.IOS_VERSION = 13;
+	mxClient.IOS = true;
+}
 
 /**
  * Variable: mxLoadResources
@@ -619,17 +635,19 @@ if (mxClient.IS_VML)
 	else
 	{
 		// Enables support for IE8 standards mode. Note that this requires all attributes for VML
-		// elements to be set using direct notation, ie. node.attr = value. The use of setAttribute
-		// is not possible.
-		if (document.documentMode == 8)
+		// elements to be set using direct notation, ie. node.attr = value, not setAttribute.
+		if (document.namespaces != null)
 		{
-			document.namespaces.add(mxClient.VML_PREFIX, 'urn:schemas-microsoft-com:vml', '#default#VML');
-			document.namespaces.add(mxClient.OFFICE_PREFIX, 'urn:schemas-microsoft-com:office:office', '#default#VML');
-		}
-		else
-		{
-			document.namespaces.add(mxClient.VML_PREFIX, 'urn:schemas-microsoft-com:vml');
-			document.namespaces.add(mxClient.OFFICE_PREFIX, 'urn:schemas-microsoft-com:office:office');
+			if (document.documentMode == 8)
+			{
+				document.namespaces.add(mxClient.VML_PREFIX, 'urn:schemas-microsoft-com:vml', '#default#VML');
+				document.namespaces.add(mxClient.OFFICE_PREFIX, 'urn:schemas-microsoft-com:office:office', '#default#VML');
+			}
+			else
+			{
+				document.namespaces.add(mxClient.VML_PREFIX, 'urn:schemas-microsoft-com:vml');
+				document.namespaces.add(mxClient.OFFICE_PREFIX, 'urn:schemas-microsoft-com:office:office');
+			}
 		}
 
 		// Workaround for limited number of stylesheets in IE (does not work in standards mode)
