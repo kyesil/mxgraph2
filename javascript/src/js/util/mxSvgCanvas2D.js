@@ -1260,19 +1260,8 @@ mxSvgCanvas2D.prototype.createDiv = function(str)
 		
 		val = '<div xmlns="http://www.w3.org/1999/xhtml">' + val + '</div>';
 
-		// Workaround for removed CSS3 styles is to force XML parsing in IE
-		if ("ActiveXObject" in window)
-		{
-			var doc = mxUtils.createMsXmlDocument();
-			doc.loadXML(val);
-			
-			return doc.documentElement;
-	 	}
-		else
-		{
-			// NOTE: FF 3.6 crashes if content CSS contains "height:100%"
-			return mxUtils.parseXml(val).documentElement;
-		}
+		// NOTE: FF 3.6 crashes if content CSS contains "height:100%"
+		return  mxUtils.parseXml(val).documentElement;
 	}
 };
 
@@ -1372,6 +1361,8 @@ mxSvgCanvas2D.prototype.updateTextNodes = function(x, y, w, h, align, valign, wr
 		// KNOWN: Possible clipping problems with zoom and scrolling
 		// but this is normally not used with scrollbars as the
 		// coordinates are always positive with scrollbars.
+		// Margin-top is ignored in Safari and no negative values allowed
+		// for padding.
 		if (yp < 0)
 		{
 			fo.setAttribute('y', yp);
@@ -1412,7 +1403,7 @@ mxSvgCanvas2D.prototype.updateTextNodes = function(x, y, w, h, align, valign, wr
  */
 mxSvgCanvas2D.createCss = function(w, h, align, valign, wrap, overflow, clip, bg, border, flex, block, s, callback)
 {
-	var item = 'box-sizing: border-box; text-align: ' + ((align == mxConstants.ALIGN_LEFT) ? 'left' :
+	var item = 'box-sizing: border-box; font-size: 0; text-align: ' + ((align == mxConstants.ALIGN_LEFT) ? 'left' :
 		((align == mxConstants.ALIGN_RIGHT) ? 'right' : 'center')) + '; ';
 	var pt = mxUtils.getAlignmentAsPoint(align, valign);
 	var ofl = 'overflow: hidden; ';
@@ -1476,7 +1467,7 @@ mxSvgCanvas2D.createCss = function(w, h, align, valign, wrap, overflow, clip, bg
 	if (wrap && w > 0)
 	{
 		block += 'white-space: normal; word-wrap: ' + mxConstants.WORD_WRAP + '; ';
-		fw = 'width: ' + Math.round(w) + 'px; ';
+		fw = 'width: ' + Math.round(w + 2) + 'px; ';
 		
 		if (ofl != '' && overflow != 'fill')
 		{
