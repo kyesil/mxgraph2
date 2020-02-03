@@ -86,6 +86,27 @@ function mxGraphHandler(graph)
 	});
 	
 	this.graph.getModel().addListener(mxEvent.CHANGE, this.refreshHandler);
+	
+	this.keyHandler = mxUtils.bind(this, function(e)
+	{
+		if (this.graph.container != null && this.graph.container.style.visibility != 'hidden' &&
+			this.first != null && !this.suspended)
+		{
+			var clone = this.graph.isCloneEvent(e) &&
+				this.graph.isCellsCloneable() &&
+				this.isCloneEnabled();
+			
+			if (clone != this.cloning)
+			{
+				this.cloning = clone;
+				this.checkPreview();
+				this.updatePreview();
+			}
+		}
+	});
+	
+	mxEvent.addListener(document, 'keydown', this.keyHandler);
+	mxEvent.addListener(document, 'keyup', this.keyHandler);
 };
 
 /**
@@ -143,6 +164,13 @@ mxGraphHandler.prototype.moveEnabled = true;
  * left side of the current selection. Default is false.
  */
 mxGraphHandler.prototype.guidesEnabled = false;
+
+/**
+ * Variable: handlesVisible
+ * 
+ * Whether the handles of the selection are currently visible.
+ */
+mxGraphHandler.prototype.handlesVisible = true;
 
 /**
  * Variable: guide
@@ -815,6 +843,32 @@ mxGraphHandler.prototype.isValidDropTarget = function(target)
 };
 
 /**
+ * Function: checkPreview
+ * 
+ * Updates the preview if cloning state has changed.
+ */
+mxGraphHandler.prototype.checkPreview = function()
+{
+	if (this.livePreviewActive && this.cloning)
+	{
+		this.resetLivePreview();
+		this.livePreviewActive = false;
+	}
+	else if (this.maxLivePreview >= this.cellCount && !this.livePreviewActive && this.allowLivePreview)
+	{
+		if (!this.cloning || !this.livePreviewActive)
+		{
+			this.livePreviewActive = true;
+			this.livePreviewUsed = true;
+		}
+	}
+	else if (!this.livePreviewUsed && this.shape == null)
+	{
+		this.shape = this.createPreviewShape(this.bounds);
+	}
+};
+
+/**
  * Function: mouseMove
  * 
  * Handles the event by highlighting possible drop targets and updating the
@@ -901,26 +955,7 @@ mxGraphHandler.prototype.mouseMove = function(sender, me)
 			{
 				this.highlight.hide();
 			}
-			
-			if (this.livePreviewActive && clone)
-			{
-				this.resetLivePreview();
-				this.livePreviewActive = false;
-			}
-			else if (this.maxLivePreview >= this.cellCount && !this.livePreviewActive && this.allowLivePreview)
-			{
-				if (!clone || !this.livePreviewActive)
-				{
-					this.setHandlesVisibleForCells(this.graph.getSelectionCells(), false);
-					this.livePreviewActive = true;
-					this.livePreviewUsed = true;
-				}
-			}
-			else if (!this.livePreviewUsed && this.shape == null)
-			{
-				this.shape = this.createPreviewShape(this.bounds);
-			}
-			
+
 			if (this.guide != null && this.useGuidesForEvent(me))
 			{
 				delta = this.guide.move(this.bounds, delta, gridEnabled, clone);
@@ -948,7 +983,9 @@ mxGraphHandler.prototype.mouseMove = function(sender, me)
 					delta.x = 0;
 				}
 			}
-
+			
+			this.checkPreview();
+			
 			if (this.currentDx != delta.x || this.currentDy != delta.y)
 			{
 				this.currentDx = delta.x;
@@ -1002,6 +1039,7 @@ mxGraphHandler.prototype.updatePreview = function(remote)
 	{
 		if (this.cells != null)
 		{
+			this.setHandlesVisibleForCells(this.graph.getSelectionCells(), false);
 			this.updateLivePreview(this.currentDx, this.currentDy);
 		}
 	}
@@ -1018,7 +1056,7 @@ mxGraphHandler.prototype.updatePreview = function(remote)
  */
 mxGraphHandler.prototype.updatePreviewShape = function()
 {
-	if (this.shape != null)
+	if (this.shape != null && this.pBounds != null)
 	{
 		this.shape.bounds = new mxRectangle(Math.round(this.pBounds.x + this.currentDx),
 				Math.round(this.pBounds.y + this.currentDy), this.pBounds.width, this.pBounds.height);
@@ -1284,6 +1322,9 @@ mxGraphHandler.prototype.resetLivePreview = function()
 				state.shape.pointerEvents = state.shape.originalPointerEvents;
 				state.shape.originalPointerEvents = null;
 				
+				// Forces repaint even if not moved to update pointer events
+				state.shape.bounds = null;
+				
 				if (state.text != null)
 				{
 					state.text.pointerEvents = state.text.originalPointerEvents;
@@ -1298,7 +1339,7 @@ mxGraphHandler.prototype.resetLivePreview = function()
 				state.control.node.style.visibility = '';
 			}
 			
-			// Forces repaint of state and connected edges
+			// Forces repaint of connected edges
 			state.view.invalidate(state.cell);
 		}));
 
@@ -1314,19 +1355,24 @@ mxGraphHandler.prototype.resetLivePreview = function()
  */
 mxGraphHandler.prototype.setHandlesVisibleForCells = function(cells, visible)
 {
-	for (var i = 0; i < cells.length; i++)
+	if (this.handlesVisible != visible)
 	{
-		var cell = cells[i];
-
-		var handler = this.graph.selectionCellsHandler.getHandler(cell);
+		this.handlesVisible = visible;
 		
-		if (handler != null)
+		for (var i = 0; i < cells.length; i++)
 		{
-			handler.setHandlesVisible(visible);
+			var cell = cells[i];
+	
+			var handler = this.graph.selectionCellsHandler.getHandler(cell);
 			
-			if (visible)
+			if (handler != null)
 			{
-				handler.redraw();
+				handler.setHandlesVisible(visible);
+				
+				if (visible)
+				{
+					handler.redraw();
+				}
 			}
 		}
 	}
@@ -1637,6 +1683,9 @@ mxGraphHandler.prototype.destroy = function()
 		this.graph.getModel().removeListener(this.refreshHandler);
 		this.refreshHandler = null;
 	}
+	
+	mxEvent.removeListener(document, 'keydown', this.keyHandler);
+	mxEvent.removeListener(document, 'keyup', this.keyHandler);
 	
 	this.destroyShapes();
 	this.removeHint();
