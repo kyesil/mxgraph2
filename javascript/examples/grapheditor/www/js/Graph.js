@@ -741,7 +741,8 @@ Graph = function(container, model, renderHint, stylesheet, themes, standalone)
 		var click = this.click;
 		this.click = function(me)
 		{
-			var locked = me.state == null && me.sourceState != null && this.isCellLocked(me.sourceState.cell);
+			var locked = me.state == null && me.sourceState != null &&
+				this.isCellLocked(me.sourceState.cell);
 			
 			if ((!this.isEnabled() || locked) && !me.isConsumed())
 			{
@@ -749,8 +750,8 @@ Graph = function(container, model, renderHint, stylesheet, themes, standalone)
 				
 				if (cell != null)
 				{
-					var link = this.getLinkForCell(cell);
-					
+					var link = this.getClickableLinkForCell(cell);
+
 					if (link != null)
 					{
 						if (this.isCustomLink(link))
@@ -797,7 +798,7 @@ Graph = function(container, model, renderHint, stylesheet, themes, standalone)
 		{
 			if (!this.isEnabled() || this.isCellLocked(cell))
 			{
-				var link = this.getLinkForCell(cell);
+				var link = this.getClickableLinkForCell(cell);
 				
 				if (link != null)
 				{
@@ -1468,6 +1469,15 @@ Graph.prototype.init = function(container)
 		return null;
 	};
 
+	/**
+	 * Returns if the child cells of the given vertex cell state should be resized.
+	 */
+	Graph.prototype.isRecursiveVertexResize = function(state)
+	{
+		return !this.isSwimlane(state.cell) && this.model.getChildCount(state.cell) > 0 &&
+			!this.isCellCollapsed(state.cell) && mxUtils.getValue(state.style, 'recursiveResize', '1') == '1' &&
+			mxUtils.getValue(state.style, 'childLayout', null) == null;
+	}
 
 	/**
 	 * Function: repaint
@@ -2092,6 +2102,32 @@ Graph.prototype.setGridSize = function(value)
 {
 	this.gridSize = value;
 	this.fireEvent(new mxEventObject('gridSizeChanged'));
+};
+
+/**
+ * Function: getClickableLinkForCell
+ * 
+ * Returns the first non-null link for the cell or its ancestors.
+ * 
+ * Parameters:
+ * 
+ * cell - <mxCell> whose link should be returned.
+ */
+Graph.prototype.getClickableLinkForCell = function(cell)
+{
+	do
+	{
+		var link = this.getLinkForCell(cell);
+		
+		if (link != null)
+		{
+			return link;
+		}
+		
+		cell = this.model.getParent(cell);
+	} while (cell != null);
+	
+	return null;
 };
 
 /**
@@ -6115,6 +6151,8 @@ if (typeof mxVertexHandler != 'undefined')
 		 */
 		Graph.prototype.getCenterInsertPoint = function(bbox)
 		{
+			bbox = (bbox != null) ? bbox : new mxRectangle();
+			
 			if (mxUtils.hasScrollbars(this.container))
 			{
 				return new mxPoint(
@@ -8167,10 +8205,8 @@ if (typeof mxVertexHandler != 'undefined')
 		 */
 		mxVertexHandler.prototype.isRecursiveResize = function(state, me)
 		{
-			return !this.graph.isSwimlane(state.cell) && this.graph.model.getChildCount(state.cell) > 0 &&
-				!mxEvent.isControlDown(me.getEvent()) && !this.graph.isCellCollapsed(state.cell) &&
-				mxUtils.getValue(state.style, 'recursiveResize', '1') == '1' &&
-				mxUtils.getValue(state.style, 'childLayout', null) == null;
+			return this.graph.isRecursiveVertexResize(state) &&
+				!mxEvent.isControlDown(me.getEvent());
 		};
 		
 		/**
