@@ -1190,7 +1190,12 @@ EditorUi.prototype.getCssClassForMarker = function(prefix, shape, marker, fill)
 	}
 	else
 	{
-		if (marker == mxConstants.ARROW_CLASSIC)
+		// SVG marker sprites
+		if (marker == 'box' || marker == 'halfCircle')
+		{
+			result = 'geSprite geSvgSprite geSprite-' + marker + ((prefix == 'end') ? ' geFlipSprite' : '');
+		}
+		else if (marker == mxConstants.ARROW_CLASSIC)
 		{
 			result = (fill == '1') ? 'geSprite geSprite-' + prefix + 'classic' : 'geSprite geSprite-' + prefix + 'classictrans';
 		}
@@ -3952,7 +3957,8 @@ EditorUi.prototype.executeLayout = function(exec, animate, post)
 		{
 			// Animates the changes in the graph model except
 			// for Camino, where animation is too slow
-			if (this.allowAnimation && animate && navigator.userAgent.indexOf('Camino') < 0)
+			if (this.allowAnimation && animate && (navigator.userAgent == null ||
+				navigator.userAgent.indexOf('Camino') < 0))
 			{
 				// New API for animating graph layout results asynchronously
 				var morph = new mxMorphing(graph);
@@ -4258,8 +4264,8 @@ EditorUi.prototype.createKeyHandler = function(editor)
 						
 					    for (var i = 0; i < cells.length; i++)
 					    {
-							var state = graph.view.getState(cells[i]);
-							var style = (state != null) ? state.style : graph.getCellStyle(cells[i]);
+					    	// TODO: Use getCompositeParent
+							var style = graph.getCurrentCellStyle(cells[i]);
 					    	
 							if (mxUtils.getValue(style, 'part', '0') == '1')
 							{
@@ -4493,7 +4499,7 @@ EditorUi.prototype.createKeyHandler = function(editor)
 	
 	keyHandler.bindControlShiftKey(36, function() { graph.exitGroup(); }); // Ctrl+Shift+Home
 	keyHandler.bindControlShiftKey(35, function() { graph.enterGroup(); }); // Ctrl+Shift+End
-	keyHandler.bindKey(36, function() { graph.home(); }); // Home
+	keyHandler.bindShiftKey(36, function() { graph.home(); }); // Ctrl+Shift+Home
 	keyHandler.bindKey(35, function() { graph.refresh(); }); // End
 	keyHandler.bindAction(107, true, 'zoomIn'); // Ctrl+Plus
 	keyHandler.bindAction(109, true, 'zoomOut'); // Ctrl+Minus
@@ -4519,10 +4525,10 @@ EditorUi.prototype.createKeyHandler = function(editor)
 			}
 		}); // Ctrl+Enter
 		keyHandler.bindAction(8, false, 'delete'); // Backspace
-		keyHandler.bindAction(8, true, 'deleteAll'); // Backspace
+		keyHandler.bindAction(8, true, 'deleteAll'); // Shift+Backspace
 		keyHandler.bindAction(46, false, 'delete'); // Delete
 		keyHandler.bindAction(46, true, 'deleteAll'); // Ctrl+Delete
-		keyHandler.bindAction(72, true, 'resetView'); // Ctrl+H
+		keyHandler.bindAction(36, false, 'resetView'); // Home
 		keyHandler.bindAction(72, true, 'fitWindow', true); // Ctrl+Shift+H
 		keyHandler.bindAction(74, true, 'fitPage'); // Ctrl+J
 		keyHandler.bindAction(74, true, 'fitTwoPages', true); // Ctrl+Shift+J

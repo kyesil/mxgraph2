@@ -280,7 +280,7 @@ Actions.prototype.init = function()
 	}, null, null, Editor.ctrlKey + '+L');
 
 	// Navigation actions
-	this.addAction('home', function() { graph.home(); }, null, null, 'Home');
+	this.addAction('home', function() { graph.home(); }, null, null, 'Shift+Home');
 	this.addAction('exitGroup', function() { graph.exitGroup(); }, null, null, Editor.ctrlKey + '+Shift+Home');
 	this.addAction('enterGroup', function() { graph.enterGroup(); }, null, null, Editor.ctrlKey + '+Shift+End');
 	this.addAction('collapse', function() { graph.foldCells(true); }, null, null, Editor.ctrlKey + '+Home');
@@ -644,7 +644,7 @@ Actions.prototype.init = function()
 	{
 		graph.zoomTo(1);
 		ui.resetScrollbars();
-	}, null, null, Editor.ctrlKey + '+H');
+	}, null, null, 'Home');
 	this.addAction('zoomIn', function(evt)
 	{
 		if (graph.isFastZoomEnabled())
@@ -1068,8 +1068,7 @@ Actions.prototype.init = function()
 			try
 			{
 				var cells = graph.getSelectionCells();
-	    		var state = graph.view.getState(cells[0]);
-	    		var style = (state != null) ? state.style : graph.getCellStyle(cells[0]);
+	    		var style = graph.getCurrentCellStyle(cells[0]);
 	    		var value = (mxUtils.getValue(style, mxConstants.STYLE_ROUNDED, '0') == '1') ? '0' : '1';
 	    		
 				graph.setCellStyles(mxConstants.STYLE_ROUNDED, value);
@@ -1295,8 +1294,7 @@ Actions.prototype.init = function()
 			        		graph.setCellStyles(mxConstants.STYLE_IMAGE, (newValue.length > 0) ? newValue : null, cells);
 			        		
 			        		// Sets shape only if not already shape with image (label or image)
-			        		var state = graph.view.getState(cells[0]);
-			        		var style = (state != null) ? state.style : graph.getCellStyle(cells[0]);
+			        		var style = graph.getCurrentCellStyle(cells[0]);
 			        		
 			        		if (style[mxConstants.STYLE_SHAPE] != 'image' && style[mxConstants.STYLE_SHAPE] != 'label')
 			        		{

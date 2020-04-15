@@ -1520,12 +1520,12 @@ mxEdgeHandler.prototype.mouseMove = function(sender, me)
 			this.setPreviewColor(color);
 			this.abspoints = clone.absolutePoints;
 			this.active = true;
+			this.updateHint(me, this.currentPoint);
 		}
 
 		// This should go before calling isOutlineConnectEvent above. As a workaround
 		// we add an offset of gridSize to the hint to avoid problem with hit detection
 		// in highlight.isHighlightAt (which uses comonentFromPoint)
-		this.updateHint(me, this.currentPoint);
 		this.drawPreview();
 		mxEvent.consume(me.getEvent());
 		me.consume();
@@ -1551,7 +1551,7 @@ mxEdgeHandler.prototype.mouseUp = function(sender, me)
 		var edge = this.state.cell;
 		var index = this.index;
 		this.index = null;
-		
+
 		// Ignores event if mouse has not been moved
 		if (me.getX() != this.startX || me.getY() != this.startY)
 		{
@@ -1672,7 +1672,11 @@ mxEdgeHandler.prototype.mouseUp = function(sender, me)
 				this.graph.getView().validate(this.state.cell);						
 			}
 		}
-		
+		else if (this.graph.isToggleEvent(me.getEvent()))
+		{
+			this.graph.selectCellForEvent(this.state.cell, me.getEvent());
+		}
+
 		// Resets the preview color the state of the handler if this
 		// handler has not been recreated
 		if (this.marker != null)

@@ -113,7 +113,8 @@ Format.prototype.initSelectionState = function()
 {
 	return {vertices: [], edges: [], x: null, y: null, width: null, height: null, style: {},
 		containsImage: false, containsLabel: false, fill: true, glass: true, rounded: true,
-		comic: true, autoSize: false, image: true, shadow: true, lineJumps: true};
+		comic: true, autoSize: false, image: true, shadow: true, lineJumps: true,
+		resizable: true, movable: true, rotatable: true};
 };
 
 /**
@@ -125,6 +126,10 @@ Format.prototype.updateSelectionStateForCell = function(result, cell, cells)
 	
 	if (graph.getModel().isVertex(cell))
 	{
+		result.resizable = result.resizable && graph.isCellResizable(cell);
+		result.rotatable = result.rotatable && graph.isCellRotatable(cell);
+		result.movable = result.movable && graph.isCellMovable(cell) &&
+			!graph.isTableRow(cell) && !graph.isTableCell(cell);
 		result.vertices.push(cell);
 		var geo = graph.getCellGeometry(cell);
 		
@@ -190,6 +195,9 @@ Format.prototype.updateSelectionStateForCell = function(result, cell, cells)
 	else if (graph.getModel().isEdge(cell))
 	{
 		result.edges.push(cell);
+		result.resizable = false;
+		result.rotatable = false;
+		result.movable = false;
 	}
 
 	var state = graph.view.getState(cell);
@@ -1963,7 +1971,7 @@ ArrangePanel.prototype.addAngle = function(div)
 	var update = null;
 	var btn = null;
 	
-	if (ss.edges.length == 0)
+	if (ss.rotatable)
 	{
 		mxUtils.write(span, mxResources.get('angle'));
 		div.appendChild(span);
@@ -2096,10 +2104,10 @@ ArrangePanel.prototype.addGeometry = function(container)
 	var ui = this.editorUi;
 	var graph = ui.editor.graph;
 	var rect = this.format.getSelectionState();
-	
+
 	var div = this.createPanel();
 	div.style.paddingBottom = '8px';
-	
+		
 	var span = document.createElement('div');
 	span.style.position = 'absolute';
 	span.style.width = '50px';
@@ -2147,7 +2155,7 @@ ArrangePanel.prototype.addGeometry = function(container)
 	this.addLabel(div, mxResources.get('width'), 84);
 	this.addLabel(div, mxResources.get('height'), 20);
 	mxUtils.br(div);
-	
+
 	var wrapper = document.createElement('div');
 	wrapper.style.paddingTop = '8px';
 	wrapper.style.paddingRight = '20px';
@@ -2192,7 +2200,10 @@ ArrangePanel.prototype.addGeometry = function(container)
 		}
 	});
 	
-	container.appendChild(div);
+	if (rect.resizable)
+	{
+		container.appendChild(div);
+	}
 	
 	var div2 = this.createPanel();
 	div2.style.paddingBottom = '30px';
@@ -2297,7 +2308,10 @@ ArrangePanel.prototype.addGeometry = function(container)
 		}
 	});
 
-	container.appendChild(div2);
+	if (rect.movable)
+	{
+		container.appendChild(div2);
+	}
 };
 
 /**
@@ -4775,7 +4789,8 @@ StyleFormatPanel.prototype.addStroke = function(container)
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_STARTARROW, 'startFill'], [mxConstants.ARROW_OVAL, 0], 'geIcon geSprite geSprite-startovaltrans', null, false).setAttribute('title', mxResources.get('oval'));
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_STARTARROW, 'startFill'], [mxConstants.ARROW_DIAMOND, 0], 'geIcon geSprite geSprite-startdiamondtrans', null, false).setAttribute('title', mxResources.get('diamond'));
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_STARTARROW, 'startFill'], [mxConstants.ARROW_DIAMOND_THIN, 0], 'geIcon geSprite geSprite-startthindiamondtrans', null, false).setAttribute('title', mxResources.get('diamondThin'));
-				
+				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_STARTARROW, 'startFill'], ['box', 0], 'geIcon geSprite geSvgSprite geSprite-box', null, false);
+				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_STARTARROW, 'startFill'], ['halfCircle', 0], 'geIcon geSprite geSvgSprite geSprite-halfCircle', null, false);
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_STARTARROW, 'startFill'], ['dash', 0], 'geIcon geSprite geSprite-startdash', null, false);
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_STARTARROW, 'startFill'], ['cross', 0], 'geIcon geSprite geSprite-startcross', null, false);
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_STARTARROW, 'startFill'], ['circlePlus', 0], 'geIcon geSprite geSprite-startcircleplus', null, false);
@@ -4823,7 +4838,8 @@ StyleFormatPanel.prototype.addStroke = function(container)
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_ENDARROW, 'endFill'], [mxConstants.ARROW_OVAL, 0], 'geIcon geSprite geSprite-endovaltrans', null, false).setAttribute('title', mxResources.get('oval'));
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_ENDARROW, 'endFill'], [mxConstants.ARROW_DIAMOND, 0], 'geIcon geSprite geSprite-enddiamondtrans', null, false).setAttribute('title', mxResources.get('diamond'));
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_ENDARROW, 'endFill'], [mxConstants.ARROW_DIAMOND_THIN, 0], 'geIcon geSprite geSprite-endthindiamondtrans', null, false).setAttribute('title', mxResources.get('diamondThin'));
-
+				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_ENDARROW, 'endFill'], ['box', 0], 'geIcon geSprite geSvgSprite geFlipSprite geSprite-box', null, false);
+				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_ENDARROW, 'endFill'], ['halfCircle', 0], 'geIcon geSprite geSvgSprite geFlipSprite geSprite-halfCircle', null, false);
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_ENDARROW, 'endFill'], ['dash', 0], 'geIcon geSprite geSprite-enddash', null, false);
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_ENDARROW, 'endFill'], ['cross', 0], 'geIcon geSprite geSprite-endcross', null, false);
 				this.editorUi.menus.edgeStyleChange(menu, '', [mxConstants.STYLE_ENDARROW, 'endFill'], ['circlePlus', 0], 'geIcon geSprite geSprite-endcircleplus', null, false);

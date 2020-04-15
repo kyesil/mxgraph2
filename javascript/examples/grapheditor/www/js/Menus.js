@@ -639,6 +639,7 @@ Menus.prototype.addInsertTableItem = function(menu, insertFn)
 		var table2 = document.createElement('table');
 		table2.setAttribute('border', '1');
 		table2.style.borderCollapse = 'collapse';
+		table2.style.borderStyle = 'solid';
 
 		if (!mxClient.IS_QUIRKS)
 		{
@@ -730,7 +731,7 @@ Menus.prototype.addInsertTableItem = function(menu, insertFn)
 					}
 					else
 					{
-						cell.style.backgroundColor = 'white';
+						cell.style.backgroundColor = 'transparent';
 					}
 				}
 			}
@@ -1170,17 +1171,17 @@ Menus.prototype.addPopupMenuCellItems = function(menu, cell, evt)
 		{
 			this.addMenuItems(menu, ['-', 'clearWaypoints'], null, evt);
 		}
-	}
 	
-	if (graph.getSelectionCount() == 1)
-	{
-		this.addMenuItems(menu, ['-', 'editData', 'editLink'], null, evt);
-
-		// Shows edit image action if there is an image in the style
-		if (graph.getModel().isVertex(cell) && mxUtils.getValue(state.style, mxConstants.STYLE_IMAGE, null) != null)
+		if (graph.getSelectionCount() == 1)
 		{
-			menu.addSeparator();
-			this.addMenuItem(menu, 'image', null, evt).firstChild.nextSibling.innerHTML = mxResources.get('editImage') + '...';
+			this.addMenuItems(menu, ['-', 'editStyle', 'editData', 'editLink'], null, evt);
+	
+			// Shows edit image action if there is an image in the style
+			if (graph.getModel().isVertex(cell) && mxUtils.getValue(state.style, mxConstants.STYLE_IMAGE, null) != null)
+			{
+				menu.addSeparator();
+				this.addMenuItem(menu, 'image', null, evt).firstChild.nextSibling.innerHTML = mxResources.get('editImage') + '...';
+			}
 		}
 	}
 };

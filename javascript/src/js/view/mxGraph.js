@@ -2649,9 +2649,39 @@ mxGraph.prototype.click = function(me)
 			// Selects the swimlane and consumes the event
 			if (swimlane != null)
 			{
+				var temp = swimlane;
+				var swimlanes = [];
+				
+				while (temp != null)
+				{
+					temp = this.model.getParent(temp);
+					var state = this.view.getState(temp);
+					
+					if (this.isSwimlane(temp) && state != null &&
+						this.intersects(state, me.getGraphX(), me.getGraphY()))
+					{
+						swimlanes.push(temp);
+					}
+				}
+				
+				// Selects ancestors for selected swimlanes
+				if (swimlanes.length > 0)
+				{
+					swimlanes = swimlanes.reverse();
+					swimlanes.splice(0, 0, swimlane);
+					swimlanes.push(swimlane);
+					
+					for (var i = 0; i < swimlanes.length - 2; i++)
+					{
+						if (this.isCellSelected(swimlanes[i]))
+						{
+							swimlane = swimlanes[i + 1];
+						}
+					}
+				}
+
 				this.selectCellForEvent(swimlane, evt);
 			}
-			
 			// Ignores the event if the control key is pressed
 			else if (!this.isToggleEvent(evt))
 			{
@@ -3257,6 +3287,24 @@ mxGraph.prototype.updatePageBreaks = function(visible, width, height)
  */
 
 /**
+ * Function: getCurrentCellStyle
+ * 
+ * Returns the style for the given cell from the cell state, if one exists,
+ * or using <getCellStyle>.
+ * 
+ * Parameters:
+ * 
+ * cell - <mxCell> whose style should be returned as an array.
+ * ignoreState - Optional boolean that specifies if the cell state should be ignored.
+ */
+mxGraph.prototype.getCurrentCellStyle = function(cell, ignoreState)
+{
+	var state = (ignoreState) ? null : this.view.getState(cell);
+	
+	return (state != null) ? state.style : this.getCellStyle(cell);
+};
+
+/**
  * Function: getCellStyle
  * 
  * Returns an array of key, value pairs representing the cell style for the
@@ -3429,14 +3477,9 @@ mxGraph.prototype.toggleCellStyles = function(key, defaultValue, cells)
 	
 	if (cells != null && cells.length > 0)
 	{
-		var state = this.view.getState(cells[0]);
-		var style = (state != null) ? state.style : this.getCellStyle(cells[0]);
-		
-		if (style != null)
-		{
-			value = (mxUtils.getValue(style, key, defaultValue)) ? 0 : 1;
-			this.setCellStyles(key, value, cells);
-		}
+		var style = this.getCurrentCellStyle(cells[0]);
+		value = (mxUtils.getValue(style, key, defaultValue)) ? 0 : 1;
+		this.setCellStyles(key, value, cells);
 	}
 	
 	return value;
@@ -3504,14 +3547,9 @@ mxGraph.prototype.setCellStyleFlags = function(key, flag, value, cells)
 	{
 		if (value == null)
 		{
-			var state = this.view.getState(cells[0]);
-			var style = (state != null) ? state.style : this.getCellStyle(cells[0]);
-			
-			if (style != null)
-			{
-				var current = parseInt(style[key] || 0);
-				value = !((current & flag) == flag);
-			}
+			var style = this.getCurrentCellStyle(cells[0]);
+			var current = parseInt(style[key] || 0);
+			value = !((current & flag) == flag);
 		}
 
 		mxUtils.setCellStyleFlags(this.model, cells, key, flag, value);
@@ -3683,17 +3721,12 @@ mxGraph.prototype.alignCells = function(align, cells, param)
  * {
  *   if (edge != null)
  *   {
- *     var state = this.view.getState(edge);
- *     var style = (state != null) ? state.style : this.getCellStyle(edge);
- *     
- *     if (style != null)
- *     {
- *       var elbow = mxUtils.getValue(style, mxConstants.STYLE_ELBOW,
- *           mxConstants.ELBOW_HORIZONTAL);
- *       var value = (elbow == mxConstants.ELBOW_HORIZONTAL) ?
- *           mxConstants.ELBOW_VERTICAL : mxConstants.ELBOW_HORIZONTAL;
- *       this.setCellStyles(mxConstants.STYLE_ELBOW, value, [edge]);
- *     }
+ *     var style = this.getCurrentCellStyle(edge);
+ *     var elbow = mxUtils.getValue(style, mxConstants.STYLE_ELBOW,
+ *         mxConstants.ELBOW_HORIZONTAL);
+ *     var value = (elbow == mxConstants.ELBOW_HORIZONTAL) ?
+ *         mxConstants.ELBOW_VERTICAL : mxConstants.ELBOW_HORIZONTAL;
+ *     this.setCellStyles(mxConstants.STYLE_ELBOW, value, [edge]);
  *   }
  * };
  * (end)
@@ -5264,8 +5297,7 @@ mxGraph.prototype.updateAlternateBounds = function(cell, geo, willCollapse)
 {
 	if (cell != null && geo != null)
 	{
-		var state = this.view.getState(cell);
-		var style = (state != null) ? state.style : this.getCellStyle(cell);
+		var style = this.getCurrentCellStyle(cell);
 
 		if (geo.alternateBounds == null)
 		{
@@ -5536,8 +5568,9 @@ mxGraph.prototype.cellSizeUpdated = function(cell, ignoreChildren)
  * Parameters:
  * 
  * cell - <mxCell> for which the preferred size should be returned.
+ * textWidth - Optional maximum text width for word wrapping.
  */
-mxGraph.prototype.getPreferredSizeForCell = function(cell)
+mxGraph.prototype.getPreferredSizeForCell = function(cell, textWidth)
 {
 	var result = null;
 	
@@ -5601,7 +5634,7 @@ mxGraph.prototype.getPreferredSizeForCell = function(cell)
 				value = value.replace(/\n/g, '<br>');
 				
 				var size = mxUtils.getSizeForString(value, fontSize,
-					style[mxConstants.STYLE_FONTFAMILY], null,
+					style[mxConstants.STYLE_FONTFAMILY], textWidth,
 					style[mxConstants.STYLE_FONTSTYLE]);
 				var width = size.width + dx;
 				var height = size.height + dy;
@@ -5894,9 +5927,7 @@ mxGraph.prototype.scaleCell = function(cell, dx, dy, recurse)
 	
 	if (geo != null)
 	{
-		var state = this.view.getState(cell);
-		var style = (state != null) ? state.style : this.getCellStyle(cell);
-		
+		var style = this.getCurrentCellStyle(cell);
 		geo = geo.clone();
 		
 		// Stores values for restoring based on style
@@ -6216,9 +6247,7 @@ mxGraph.prototype.translateCell = function(cell, dx, dy)
 			
 			if (this.model.isVertex(parent))
 			{
-				var state = this.view.getState(parent);
-				var style = (state != null) ? state.style : this.getCellStyle(parent);
-				
+				var style = this.getCurrentCellStyle(parent);
 				angle = mxUtils.getValue(style, mxConstants.STYLE_ROTATION, 0);
 			}
 			
@@ -6276,9 +6305,7 @@ mxGraph.prototype.getCellContainmentArea = function(cell)
 				if (this.isSwimlane(parent))
 				{
 					var size = this.getStartSize(parent);
-					
-					var state = this.view.getState(parent);
-					var style = (state != null) ? state.style : this.getCellStyle(parent);
+					var style = this.getCurrentCellStyle(parent);
 					var dir = mxUtils.getValue(style, mxConstants.STYLE_DIRECTION, mxConstants.DIRECTION_EAST);
 					var flipH = mxUtils.getValue(style, mxConstants.STYLE_FLIPH, 0) == 1;
 					var flipV = mxUtils.getValue(style, mxConstants.STYLE_FLIPV, 0) == 1;
@@ -7540,10 +7567,9 @@ mxGraph.prototype.getBoundingBoxFromGeometry = function(cells, includeEdges)
 							bbox.y += geo.offset.y;
 						}
 
-						var state = this.view.getState(cells[i]);
-						var style = (state != null) ? state.style : this.getCellStyle(cells[i]);
+						var style = this.getCurrentCellStyle(cells[i]);
 						
-						if (bbox != null && style != null)
+						if (bbox != null)
 						{
 							var angle = mxUtils.getValue(style, mxConstants.STYLE_ROTATION, 0);
 							
@@ -8927,8 +8953,7 @@ mxGraph.prototype.getLabel = function(cell)
 	
 	if (this.labelsVisible && cell != null)
 	{
-		var state = this.view.getState(cell);
-		var style = (state != null) ? state.style : this.getCellStyle(cell);
+		var style = this.getCurrentCellStyle(cell);
 		
 		if (!mxUtils.getValue(style, mxConstants.STYLE_NOLABEL, false))
 		{
@@ -9021,10 +9046,7 @@ mxGraph.prototype.setHtmlLabels = function(value)
  */
 mxGraph.prototype.isWrapping = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
-
-	return (style != null) ? style[mxConstants.STYLE_WHITE_SPACE] == 'wrap' : false;
+	return this.getCurrentCellStyle(cell)[mxConstants.STYLE_WHITE_SPACE] == 'wrap';
 };
 
 /**
@@ -9041,10 +9063,7 @@ mxGraph.prototype.isWrapping = function(cell)
  */
 mxGraph.prototype.isLabelClipped = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
-
-	return (style != null) ? style[mxConstants.STYLE_OVERFLOW] == 'hidden' : false;
+	return this.getCurrentCellStyle(cell)[mxConstants.STYLE_OVERFLOW] == 'hidden';
 };
 
 /**
@@ -9205,26 +9224,105 @@ mxGraph.prototype.getCursorForCell = function(cell)
  * Parameters:
  * 
  * swimlane - <mxCell> whose start size should be returned.
- * ignoreCache - Optional boolean that specifies if cell state should be ignored.
+ * ignoreState - Optional boolean that specifies if cell state should be ignored.
  */
 mxGraph.prototype.getStartSize = function(swimlane, ignoreState)
 {
 	var result = new mxRectangle();
-	var state = (ignoreState) ? null : this.view.getState(swimlane);
-	var style = (state != null) ? state.style : this.getCellStyle(swimlane);
+	var style = this.getCurrentCellStyle(swimlane, ignoreState);
+	var size = parseInt(mxUtils.getValue(style,
+		mxConstants.STYLE_STARTSIZE, mxConstants.DEFAULT_STARTSIZE));
 	
-	if (style != null)
+	if (mxUtils.getValue(style, mxConstants.STYLE_HORIZONTAL, true))
 	{
+		result.height = size;
+	}
+	else
+	{
+		result.width = size;
+	}
+	
+	return result;
+};
+
+/**
+ * Function: getActualStartSize
+ * 
+ * Returns the actual start size of the given swimlane taking into account
+ * direction and horizontal and vertial flip styles. The start size is
+ * returned as an <mxRectangle> where top, left, bottom, right start sizes
+ * are returned as x, y, height and width, respectively.
+ * 
+ * Parameters:
+ * 
+ * swimlane - <mxCell> whose start size should be returned.
+ * ignoreState - Optional boolean that specifies if cell state should be ignored.
+ */
+mxGraph.prototype.getActualStartSize = function(swimlane, ignoreState)
+{
+	var result = new mxRectangle();
+	
+	if (this.isSwimlane(swimlane))
+	{
+		var style = this.getCurrentCellStyle(swimlane, ignoreState);
 		var size = parseInt(mxUtils.getValue(style,
 			mxConstants.STYLE_STARTSIZE, mxConstants.DEFAULT_STARTSIZE));
+		var flipH = mxUtils.getValue(style, mxConstants.STYLE_FLIPH, 0) == 1;
+		var flipV = mxUtils.getValue(style, mxConstants.STYLE_FLIPV, 0) == 1;
+		var h = mxUtils.getValue(style, mxConstants.STYLE_HORIZONTAL, true);
+		var n = 0;
 		
-		if (mxUtils.getValue(style, mxConstants.STYLE_HORIZONTAL, true))
+		if (!h)
+		{
+			n++;
+		}
+		
+		var dir = mxUtils.getValue(style, mxConstants.STYLE_DIRECTION, mxConstants.DIRECTION_EAST);
+		
+		if (dir == mxConstants.DIRECTION_NORTH)
+		{
+			n++;
+		}
+		else if (dir == mxConstants.DIRECTION_WEST)
+		{
+			n += 2;
+		}
+		else if (dir == mxConstants.DIRECTION_SOUTH)
+		{
+			n += 3;
+		}
+		
+		n = mxUtils.mod(n, 4);
+		
+		if (n == 0)
+		{
+			result.y = size;
+		}
+		else if (n == 1)
+		{
+			result.x = size;
+		}
+		else if (n == 2)
 		{
 			result.height = size;
 		}
-		else
+		else if (n == 3)
 		{
 			result.width = size;
+		}
+		
+		if (flipV)
+		{
+			var tmp = result.y;
+			result.y = result.height;
+			result.height = tmp;
+		}
+		
+		if (flipH)
+		{
+			var tmp = result.x;
+			result.x = result.width;
+			result.width = tmp;
 		}
 	}
 	
@@ -9394,18 +9492,9 @@ mxGraph.prototype.setBorder = function(value)
  */
 mxGraph.prototype.isSwimlane = function(cell)
 {
-	if (cell != null)
+	if (cell != null && this.model.getParent(cell) != this.model.getRoot() && !this.model.isEdge(cell))
 	{
-		if (this.model.getParent(cell) != this.model.getRoot())
-		{
-			var state = this.view.getState(cell);
-			var style = (state != null) ? state.style : this.getCellStyle(cell);
-
-			if (style != null && !this.model.isEdge(cell))
-			{
-				return style[mxConstants.STYLE_SHAPE] == mxConstants.SHAPE_SWIMLANE;
-			}
-		}
+		return this.getCurrentCellStyle(cell)[mxConstants.STYLE_SHAPE] == mxConstants.SHAPE_SWIMLANE;
 	}
 	
 	return false;
@@ -9603,8 +9692,7 @@ mxGraph.prototype.getCloneableCells = function(cells)
  */
 mxGraph.prototype.isCellCloneable = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
+	var style = this.getCurrentCellStyle(cell);
 
 	return this.isCellsCloneable() && style[mxConstants.STYLE_CLONEABLE] != 0;
 };
@@ -9703,8 +9791,7 @@ mxGraph.prototype.canImportCell = function(cell)
  * (code)
  * mxGraph.prototype.isCellSelectable = function(cell)
  * {
- *   var state = this.view.getState(cell);
- *   var style = (state != null) ? state.style : this.getCellStyle(cell);
+ *   var style = this.getCurrentCellStyle(cell);
  *   
  *   return this.isCellsSelectable() && !this.isCellLocked(cell) && style['selectable'] != 0;
  * };
@@ -9771,8 +9858,7 @@ mxGraph.prototype.getDeletableCells = function(cells)
  */
 mxGraph.prototype.isCellDeletable = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
+	var style = this.getCurrentCellStyle(cell);
 	
 	return this.isCellsDeletable() && style[mxConstants.STYLE_DELETABLE] != 0;
 };
@@ -9831,8 +9917,7 @@ mxGraph.prototype.isLabelMovable = function(cell)
  */
 mxGraph.prototype.isCellRotatable = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
+	var style = this.getCurrentCellStyle(cell);
 	
 	return style[mxConstants.STYLE_ROTATABLE] != 0;
 };
@@ -9863,8 +9948,7 @@ mxGraph.prototype.getMovableCells = function(cells)
  */
 mxGraph.prototype.isCellMovable = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
+	var style = this.getCurrentCellStyle(cell);
 	
 	return this.isCellsMovable() && !this.isCellLocked(cell) && style[mxConstants.STYLE_MOVABLE] != 0;
 };
@@ -10290,8 +10374,7 @@ mxGraph.prototype.setSplitEnabled = function(value)
  */
 mxGraph.prototype.isCellResizable = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
+	var style = this.getCurrentCellStyle(cell);
 
 	return this.isCellsResizable() && !this.isCellLocked(cell) &&
 		mxUtils.getValue(style, mxConstants.STYLE_RESIZABLE, '1') != '0';
@@ -10355,8 +10438,7 @@ mxGraph.prototype.isTerminalPointMovable = function(cell, source)
  */
 mxGraph.prototype.isCellBendable = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
+	var style = this.getCurrentCellStyle(cell);
 	
 	return this.isCellsBendable() && !this.isCellLocked(cell) && style[mxConstants.STYLE_BENDABLE] != 0;
 };
@@ -10400,8 +10482,7 @@ mxGraph.prototype.setCellsBendable = function(value)
  */
 mxGraph.prototype.isCellEditable = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
+	var style = this.getCurrentCellStyle(cell);
 	
 	return this.isCellsEditable() && !this.isCellLocked(cell) && style[mxConstants.STYLE_EDITABLE] != 0;
 };
@@ -10615,8 +10696,7 @@ mxGraph.prototype.isEditing = function(cell)
  */
 mxGraph.prototype.isAutoSizeCell = function(cell)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
+	var style = this.getCurrentCellStyle(cell);
 	
 	return this.isAutoSizeCells() || style[mxConstants.STYLE_AUTOSIZE] == 1;
 };
@@ -10902,8 +10982,7 @@ mxGraph.prototype.getFoldableCells = function(cells, collapse)
  */
 mxGraph.prototype.isCellFoldable = function(cell, collapse)
 {
-	var state = this.view.getState(cell);
-	var style = (state != null) ? state.style : this.getCellStyle(cell);
+	var style = this.getCurrentCellStyle(cell);
 	
 	return this.model.getChildCount(cell) > 0 && style[mxConstants.STYLE_FOLDABLE] != 0;
 };
