@@ -2683,103 +2683,14 @@ FilenameDialog.createFileTypes = function(editorUi, nameInput, types)
 		
 		return result;
 	};
-
-	// Selects ancestors before descendants
-	var graphHandlerGetInitialCellForEvent = mxGraphHandler.prototype.getInitialCellForEvent;
-	mxGraphHandler.prototype.getInitialCellForEvent = function(me)
-	{
-		var cell = graphHandlerGetInitialCellForEvent.apply(this, arguments);
-		var model = this.graph.getModel();
-		var psel = model.getParent(this.graph.getSelectionCell());
-		var parent = model.getParent(cell);
-		
-		if (psel == null || (psel != cell && psel != parent))
-		{
-			while (!this.graph.isCellSelected(cell) &&
-				!this.graph.isCellSelected(parent) &&
-				(!this.graph.isContainer(parent) ||
-				this.graph.isPart(cell)) &&
-				model.isVertex(parent))
-			{
-				cell = parent;
-				parent = this.graph.getModel().getParent(cell);
-			}
-		}
-		
-		return cell;
-	};
 	
-	// Selection is delayed to mouseup if ancestor is selected
-	var graphHandlerIsDelayedSelection = mxGraphHandler.prototype.isDelayedSelection;
-	mxGraphHandler.prototype.isDelayedSelection = function(cell, me)
+	/**
+	 * Selects tables before cells and rows.
+	 */
+	var mxGraphHandlerIsPropagateSelectionCell = mxGraphHandler.prototype.isPropagateSelectionCell;
+	mxGraphHandler.prototype.isPropagateSelectionCell = function(cell, parent)
 	{
-		if (this.graph.cellEditor.getEditingCell() == cell)
-		{
-			return false;
-		}
-		else
-		{
-			var result = graphHandlerIsDelayedSelection.apply(this, arguments);
-			
-			if (!result)
-			{
-				var model = this.graph.getModel();
-				var parent = model.getParent(cell);
-				
-				while (parent != null)
-				{
-					// Inconsistency for unselected parent swimlane is intended for easier moving
-					// of stack layouts where the container title section is too far away
-					if (this.graph.isCellSelected(parent) && model.isVertex(parent))
-					{
-						result = true;
-						break;
-					}
-					
-					parent = model.getParent(parent);
-				}
-			}
-			
-			return result;
-		}
-	};
-	
-	// Delayed selection of parent group
-	mxGraphHandler.prototype.selectDelayed = function(me)
-	{
-		if (!this.graph.popupMenuHandler.isPopupTrigger(me))
-		{
-			var cell = me.getCell();
-			
-			if (cell == null)
-			{
-				cell = this.cell;
-			}
-
-			// Selects folded cell for hit on folding icon
-			var state = this.graph.view.getState(cell)
-			
-			if (state != null && me.isSource(state.control))
-			{
-				this.graph.selectCellForEvent(cell, me.getEvent());
-			}
-			else
-			{
-				if (!this.graph.isToggleEvent(me.getEvent()))
-				{
-					var model = this.graph.getModel();
-					var parent = model.getParent(cell);
-					
-					while (!this.graph.isCellSelected(parent) && model.isVertex(parent))
-					{
-						cell = parent;
-						parent = model.getParent(cell);
-					}
-				}
-				
-				this.graph.selectCellForEvent(cell, me.getEvent());
-			}
-		}
+		return mxGraphHandlerIsPropagateSelectionCell.apply(this, arguments) || this.graph.isPart(cell);
 	};
 
 	// Returns last selected ancestor
@@ -2788,8 +2699,9 @@ FilenameDialog.createFileTypes = function(editorUi, nameInput, types)
 		var cell = me.getCell();
 		var model = this.graph.getModel();
 		var parent = model.getParent(cell);
+		var state = this.graph.view.getState(parent);
 		
-		while (model.isVertex(parent) && !this.graph.isContainer(parent))
+		while (state != null && (model.isVertex(parent) || model.isEdge(parent)))
 		{
 			if (this.graph.isCellSelected(parent))
 			{

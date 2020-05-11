@@ -2610,7 +2610,6 @@ mxGraph.prototype.click = function(me)
 	
 	this.fireEvent(mxe);
 	
-	// Handles the event if it has not been consumed
 	if (this.isEnabled() && !mxEvent.isConsumed(evt) && !mxe.isConsumed())
 	{
 		if (cell != null)
@@ -2619,12 +2618,14 @@ mxGraph.prototype.click = function(me)
 			{
 				var active = false;
 				
-				var tmp = this.getCellAt(me.graphX, me.graphY, null, null, null, mxUtils.bind(this, function(state)
+				var tmp = this.getCellAt(me.graphX, me.graphY, null, null, null,
+					mxUtils.bind(this, function(state)
 				{
 					var selected = this.isCellSelected(state.cell);
 					active = active || selected;
 					
-					return !active || selected;
+					return !active || selected || (state.cell != cell &&
+						this.model.isAncestor(state.cell, cell));
 				}));
 				
 				if (tmp != null)
@@ -2632,63 +2633,95 @@ mxGraph.prototype.click = function(me)
 					cell = tmp;
 				}
 			}
+		}
+		else if (this.isSwimlaneSelectionEnabled())
+		{
+			cell = this.getSwimlaneAt(me.getGraphX(), me.getGraphY());
+				
+			if (!this.isToggleEvent(evt))
+			{
+				cell = this.getCellToSelect(cell);
+			}
+		}
 			
+		if (cell != null)
+		{
 			this.selectCellForEvent(cell, evt);
+		}
+		else if (!this.isToggleEvent(evt))
+		{
+			this.clearSelection();
+		}
+	}
+};
+
+/**
+ * Function: getCellToSelect
+ * 
+ * Returns the cell to be selected after a delayed selection
+ * or a click event on the given cell.
+ */
+mxGraph.prototype.getCellToSelect = function(cell)
+{
+	var current = cell;
+	
+	while (current != null)
+	{
+		if (this.cellEditor.getEditingCell() == current)
+		{
+			cell = current;
+			current = null;
 		}
 		else
 		{
-			var swimlane = null;
+			var parent = this.model.getParent(current);
+			var state = this.view.getState(parent);
 			
-			if (this.isSwimlaneSelectionEnabled())
+			if (parent != null && state != null &&
+				(this.model.isVertex(parent) ||
+				this.model.isEdge(parent)))
 			{
-				// Gets the swimlane at the location (includes
-				// content area of swimlanes)
-				swimlane = this.getSwimlaneAt(me.getGraphX(), me.getGraphY());
-			}
-
-			// Selects the swimlane and consumes the event
-			if (swimlane != null)
-			{
-				var temp = swimlane;
-				var swimlanes = [];
+				var geo = this.getCellGeometry(current);
+				var cs = this.isCellSelected(current);
+				var ps = this.isCellSelected(parent);
 				
-				while (temp != null)
+				if (cs && !ps)
 				{
-					temp = this.model.getParent(temp);
-					var state = this.view.getState(temp);
-					
-					if (this.isSwimlane(temp) && state != null &&
-						this.intersects(state, me.getGraphX(), me.getGraphY()))
-					{
-						swimlanes.push(temp);
-					}
+					current = null;
+					cell = parent;
 				}
-				
-				// Selects ancestors for selected swimlanes
-				if (swimlanes.length > 0)
+				// Stops propagation for cells in swimlanes, unselected relative children
+				// in selected ancestors and if child and parent are both selected
+				else if ((!this.graphHandler.isPropagateSelectionCell(current, parent) &&
+					!this.isSwimlane(current)) || (geo != null && geo.relative &&
+					!cs && ps) || (cs && ps))
 				{
-					swimlanes = swimlanes.reverse();
-					swimlanes.splice(0, 0, swimlane);
-					swimlanes.push(swimlane);
-					
-					for (var i = 0; i < swimlanes.length - 2; i++)
+					// Selects unselected parent for relative initial cells
+					if (current != cell)
 					{
-						if (this.isCellSelected(swimlanes[i]))
+						geo = this.getCellGeometry(cell);
+						
+						if (geo != null && geo.relative && !cs)
 						{
-							swimlane = swimlanes[i + 1];
+							cell = current;
 						}
 					}
+					 
+					current = null;
 				}
-
-				this.selectCellForEvent(swimlane, evt);
+				else
+				{
+					current = parent;	
+				}
 			}
-			// Ignores the event if the control key is pressed
-			else if (!this.isToggleEvent(evt))
+			else
 			{
-				this.clearSelection();
+				current = null;
 			}
 		}
 	}
+	
+	return cell;
 };
 
 /**

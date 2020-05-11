@@ -231,6 +231,18 @@ mxSwimlane.prototype.paintSwimlane = function(c, x, y, w, h, start, fill, swimla
 {
 	c.begin();
 	
+	var events = true;
+	
+	if (this.style != null)
+	{
+		events = mxUtils.getValue(this.style, mxConstants.STYLE_POINTER_EVENTS, '1') == '1';
+	}
+	
+	if (!events && (this.fill == null || this.fill == mxConstants.NONE))
+	{
+		c.pointerEvents = false;
+	}
+	
 	if (this.isHorizontal())
 	{
 		c.moveTo(0, start);
@@ -241,11 +253,12 @@ mxSwimlane.prototype.paintSwimlane = function(c, x, y, w, h, start, fill, swimla
 
 		if (start < h)
 		{
-			if (fill == mxConstants.NONE)
+			if (fill == mxConstants.NONE || !events)
 			{
 				c.pointerEvents = false;
 			}
-			else
+			
+			if (fill != mxConstants.NONE)
 			{
 				c.setFillColor(fill);
 			}
@@ -276,11 +289,12 @@ mxSwimlane.prototype.paintSwimlane = function(c, x, y, w, h, start, fill, swimla
 		
 		if (start < w)
 		{
-			if (fill == mxConstants.NONE)
+			if (fill == mxConstants.NONE || !events)
 			{
 				c.pointerEvents = false;
 			}
-			else
+			
+			if (fill != mxConstants.NONE)
 			{
 				c.setFillColor(fill);
 			}
@@ -316,7 +330,19 @@ mxSwimlane.prototype.paintSwimlane = function(c, x, y, w, h, start, fill, swimla
 mxSwimlane.prototype.paintRoundedSwimlane = function(c, x, y, w, h, start, r, fill, swimlaneLine)
 {
 	c.begin();
-
+	
+	var events = true;
+	
+	if (this.style != null)
+	{
+		events = mxUtils.getValue(this.style, mxConstants.STYLE_POINTER_EVENTS, '1') == '1';
+	}
+	
+	if (!events && (this.fill == null || this.fill == mxConstants.NONE))
+	{
+		c.pointerEvents = false;
+	}
+	
 	if (this.isHorizontal())
 	{
 		c.moveTo(w, start);
@@ -329,11 +355,12 @@ mxSwimlane.prototype.paintRoundedSwimlane = function(c, x, y, w, h, start, r, fi
 		
 		if (start < h)
 		{
-			if (fill == mxConstants.NONE)
+			if (fill == mxConstants.NONE || !events)
 			{
 				c.pointerEvents = false;
 			}
-			else
+			
+			if (fill != mxConstants.NONE)
 			{
 				c.setFillColor(fill);
 			}
@@ -368,11 +395,12 @@ mxSwimlane.prototype.paintRoundedSwimlane = function(c, x, y, w, h, start, r, fi
 
 		if (start < w)
 		{
-			if (fill == mxConstants.NONE)
+			if (fill == mxConstants.NONE || !events)
 			{
 				c.pointerEvents = false;
 			}
-			else
+			
+			if (fill != mxConstants.NONE)
 			{
 				c.setFillColor(fill);
 			}

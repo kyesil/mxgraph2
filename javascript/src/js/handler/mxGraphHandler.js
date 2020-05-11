@@ -407,23 +407,65 @@ mxGraphHandler.prototype.setRemoveCellsFromParent = function(value)
 };
 
 /**
+ * Function: isPropagateSelectionCell
+ * 
+ * Returns true if the given cell and parent should propagate
+ * selection state to the parent.
+ */
+mxGraphHandler.prototype.isPropagateSelectionCell = function(cell, parent)
+{
+	var geo = this.graph.getCellGeometry(cell);
+	
+	return geo == null || geo.relative;
+};
+
+/**
  * Function: getInitialCellForEvent
  * 
- * Hook to return initial cell for the given event.
+ * Hook to return initial cell for the given event. This returns
+ * the topmost cell that is not a swimlane or is selected.
  */
 mxGraphHandler.prototype.getInitialCellForEvent = function(me)
 {
-	return me.getCell();
+	var state = me.getState();
+	
+	if (!this.graph.isToggleEvent(me.getEvent()))
+	{
+		var model = this.graph.model;
+		var next = state;
+		
+		while (next != null && model.isVertex(next.cell) &&
+			this.isPropagateSelectionCell(state.cell, next.cell))
+		{
+			state = next;
+			next = this.graph.view.getState(model.getParent(state.cell));
+		}
+	}
+	
+	return (state != null) ? state.cell : null;
 };
 
 /**
  * Function: isDelayedSelection
  * 
- * Hook to return true for delayed selections.
+ * Returns true if the cell or one of its ancestors is selected.
  */
 mxGraphHandler.prototype.isDelayedSelection = function(cell, me)
 {
-	return this.graph.isCellSelected(cell);
+	if (!this.graph.isToggleEvent(me.getEvent()))
+	{
+		while (cell != null)
+		{
+			if (this.graph.selectionCellsHandler.isHandled(cell))
+			{
+				return this.graph.cellEditor.getEditingCell() != cell;
+			}
+			
+			cell = this.graph.model.getParent(cell);
+		}
+	}
+	
+	return false;
 };
 
 /**
@@ -1463,9 +1505,9 @@ mxGraphHandler.prototype.mouseUp = function(sender, me)
  */
 mxGraphHandler.prototype.selectDelayed = function(me)
 {
-	if (!this.graph.isCellSelected(this.cell) || !this.graph.popupMenuHandler.isPopupTrigger(me))
+	if (!this.graph.popupMenuHandler.isPopupTrigger(me))
 	{
-		this.graph.selectCellForEvent(this.cell, me.getEvent());
+		this.graph.selectCellForEvent(this.graph.getCellToSelect(me.getCell()));
 	}
 };
 
