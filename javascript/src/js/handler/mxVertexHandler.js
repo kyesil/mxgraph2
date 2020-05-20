@@ -513,12 +513,16 @@ mxVertexHandler.prototype.getHandleForEvent = function(me)
 	var tol = (!mxEvent.isMouseEvent(me.getEvent())) ? this.tolerance : 1;
 	var hit = (this.allowHandleBoundsCheck && (mxClient.IS_IE || tol > 0)) ?
 		new mxRectangle(me.getGraphX() - tol, me.getGraphY() - tol, 2 * tol, 2 * tol) : null;
-	
-	function checkShape(shape)
+
+	var checkShape = mxUtils.bind(this, function(shape)
 	{
-		return shape != null && (me.isSource(shape) || (hit != null && mxUtils.intersects(shape.bounds, hit) &&
+		var real = (shape != null && shape.constructor != mxImageShape && this.allowHandleBoundsCheck) ?
+			new mxRectangle(me.getGraphX() - shape.svgStrokeTolerance, me.getGraphY() - shape.svgStrokeTolerance,
+				2 * shape.svgStrokeTolerance, 2 * shape.svgStrokeTolerance) : hit;
+		
+		return shape != null && (me.isSource(shape) || (real != null && mxUtils.intersects(shape.bounds, real) &&
 			shape.node.style.display != 'none' && shape.node.style.visibility != 'hidden'));
-	}
+	});
 
 	if (this.customHandles != null && this.isCustomHandleEvent(me))
 	{
@@ -1672,7 +1676,8 @@ mxVertexHandler.prototype.union = function(bounds, dx, dy, index, gridEnabled, s
 mxVertexHandler.prototype.redraw = function(ignoreHandles)
 {
 	this.selectionBounds = this.getSelectionBounds(this.state);
-	this.bounds = new mxRectangle(this.selectionBounds.x, this.selectionBounds.y, this.selectionBounds.width, this.selectionBounds.height);
+	this.bounds = new mxRectangle(this.selectionBounds.x, this.selectionBounds.y,
+		this.selectionBounds.width, this.selectionBounds.height);
 	this.drawPreview();
 
 	if (!ignoreHandles)

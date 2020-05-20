@@ -2688,22 +2688,62 @@ FilenameDialog.createFileTypes = function(editorUi, nameInput, types)
 	 * Selects tables before cells and rows.
 	 */
 	var mxGraphHandlerIsPropagateSelectionCell = mxGraphHandler.prototype.isPropagateSelectionCell;
-	mxGraphHandler.prototype.isPropagateSelectionCell = function(cell, parent)
+	mxGraphHandler.prototype.isPropagateSelectionCell = function(cell, immediate)
 	{
-		return mxGraphHandlerIsPropagateSelectionCell.apply(this, arguments) || this.graph.isPart(cell);
+		var result = false;
+		var parent = this.graph.model.getParent(cell)
+		
+		if (immediate)
+		{
+			var geo = this.graph.getCellGeometry(cell);
+			
+			return !this.graph.model.isEdge(cell) &&
+				!this.graph.model.isEdge(parent) &&
+				!this.graph.isSiblingSelected(cell) &&
+				(geo == null || geo.relative ||
+				!this.graph.isContainer(parent) ||
+				this.graph.isPart(cell));
+		}
+		else
+		{
+			result = mxGraphHandlerIsPropagateSelectionCell.apply(this, arguments);
+			
+			if (this.graph.isTableCell(cell) || this.graph.isTableRow(cell))
+			{
+				var table = parent;
+				
+				if (!this.graph.isTable(table))
+				{
+					table = this.graph.model.getParent(table);
+				}
+				
+				result = !this.graph.selectionCellsHandler.isHandled(table) ||
+					this.graph.isCellSelected(cell) || (this.graph.isTableCell(cell) &&
+					this.graph.isCellSelected(parent));
+			}
+		}
+		
+		return result;
 	};
 
-	// Returns last selected ancestor
+	/**
+	 * Returns last selected ancestor
+	 */
 	mxPopupMenuHandler.prototype.getCellForPopupEvent = function(me)
 	{
 		var cell = me.getCell();
 		var model = this.graph.getModel();
 		var parent = model.getParent(cell);
 		var state = this.graph.view.getState(parent);
+		var selected = this.graph.isCellSelected(cell);
 		
 		while (state != null && (model.isVertex(parent) || model.isEdge(parent)))
 		{
-			if (this.graph.isCellSelected(parent))
+			var temp = this.graph.isCellSelected(parent);
+			selected = selected || temp;
+			
+			if (temp || (!selected && (this.graph.isTableCell(cell) ||
+				this.graph.isTableRow(cell))))
 			{
 				cell = parent;
 			}
