@@ -250,40 +250,76 @@ Graph = function(container, model, renderHint, stylesheet, themes, standalone)
 			    			}
     					}
 		    		}
-		    		else if (this.isTableCell(state.cell) && !this.panningHandler.isActive())
+		    		else if (!this.panningHandler.isActive())
 		    		{
-	    				var row = this.model.getParent(state.cell);
-	    				var table = this.model.getParent(row);
-		    			var handler = this.selectionCellsHandler.getHandler(state.cell);
-		
-		    			// Cell custom handles have precedence over row and col resize
-		    			if (handler == null || handler.getHandleForEvent(me) == null)
+			    		var box = new mxRectangle(me.getGraphX(), me.getGraphY());
+		    			box.grow(mxShape.prototype.svgStrokeTolerance - 1);
+		    			
+		    			if (this.isTableCell(state.cell))
 		    			{
-			    			var box = new mxRectangle(me.getGraphX(), me.getGraphY());
-		    				box.grow(mxShape.prototype.svgStrokeTolerance - 1);
-
-		    				if ((mxUtils.intersects(box, new mxRectangle(state.x, state.y - 1, state.width, 1)) &&
-		    					this.model.getChildAt(table, 0) != row) || mxUtils.intersects(box, new mxRectangle(
-		    					state.x, state.y + state.height - 1, state.width, 1)) ||
-			    				(mxUtils.intersects(box, new mxRectangle(state.x - 1, state.y, 1, state.height)) &&
-			    				this.model.getChildAt(row, 0) != state.cell) || mxUtils.intersects(box, new mxRectangle(
-		    					state.x + state.width - 1, state.y, 1, state.height)))
-	    					{
-			    				this.selectCellForEvent(table, me.getEvent());
-				    			handler = this.selectionCellsHandler.getHandler(table);
-	
-				    			if (handler != null)
-				    			{
-				    				var handle = handler.getHandleForEvent(me);
-		    				
-				    				if (handle != null)
-				    				{
+			    			var handler = this.selectionCellsHandler.getHandler(state.cell);
+			
+			    			// Cell custom handles have precedence over row and col resize
+			    			if (handler == null || handler.getHandleForEvent(me) == null)
+			    			{
+			    				var row = this.model.getParent(state.cell);
+			    				var table = this.model.getParent(row);
+			    				
+			    				if ((mxUtils.intersects(box, new mxRectangle(state.x, state.y - 1, state.width, 1)) &&
+			    					this.model.getChildAt(table, 0) != row) || mxUtils.intersects(box, new mxRectangle(
+			    					state.x, state.y + state.height - 1, state.width, 1)) ||
+				    				(mxUtils.intersects(box, new mxRectangle(state.x - 1, state.y, 1, state.height)) &&
+				    				this.model.getChildAt(row, 0) != state.cell) || mxUtils.intersects(box, new mxRectangle(
+			    					state.x + state.width - 1, state.y, 1, state.height)))
+		    					{
+				    				this.selectCellForEvent(table, me.getEvent());
+					    			handler = this.selectionCellsHandler.getHandler(table);
+		
+					    			if (handler != null)
+					    			{
+					    				var handle = handler.getHandleForEvent(me);
+			    				
+					    				if (handle != null)
+					    				{
+					    					handler.start(me.getGraphX(), me.getGraphY(), handle);
+					    					me.consume();
+					    				}
+					    			}
+		    					}
+			    			}
+		    			}
+		    			
+		    			// Hover for swimlane start sizes inside tables
+			    		var current = state;
+			    		
+			    		while (!me.isConsumed() && current != null && (this.isTableCell(current.cell) ||
+			    			this.isTableRow(current.cell) || this.isTable(current.cell)))
+			    		{
+				    		if (this.isSwimlane(current.cell))
+				    		{
+				    			var offset = this.getActualStartSize(current.cell);
+				    			
+	    						if (((offset.x > 0 || offset.width > 0) && mxUtils.intersects(box, new mxRectangle(
+	    							current.x + offset.x - offset.width - 1 + ((offset.x == 0) ? current.width : 0),
+	    							current.y, 1, current.height))) || ((offset.y > 0 || offset.height > 0) &&
+	    							mxUtils.intersects(box, new mxRectangle(current.x, current.y + offset.y -
+	    							offset.height - 1 + ((offset.y == 0) ? current.height : 0), current.width, 1))))
+	    						{
+		    						this.selectCellForEvent(current.cell, me.getEvent());
+					    			handler = this.selectionCellsHandler.getHandler(current.cell);
+		
+					    			if (handler != null)
+					    			{
+					    				// Swimlane start size handle is last custom handle
+					    				var handle = mxEvent.CUSTOM_HANDLE - handler.customHandles.length + 1;
 				    					handler.start(me.getGraphX(), me.getGraphY(), handle);
 				    					me.consume();
-				    				}
-				    			}
-	    					}
-		    			}
+					    			}
+	    						}
+				    		}
+				    		
+				    		current = this.view.getState(this.model.getParent(current.cell));
+			    		}
 		    		}
 		    	}
 			}
@@ -480,28 +516,58 @@ Graph = function(container, model, renderHint, stylesheet, themes, standalone)
 			    					}
 			    				}
 				    		}
-				    		else if (this.isTableCell(state.cell))
+				    		else
 				    		{
 				    			var box = new mxRectangle(me.getGraphX(), me.getGraphY());
 			    				box.grow(mxShape.prototype.svgStrokeTolerance - 1);
-
-			    				var row = this.model.getParent(state.cell);
-		    					var table = this.model.getParent(row);
-
-		    					if ((mxUtils.intersects(box, new mxRectangle(state.x - 1, state.y, 1, state.height)) &&
-				    				this.model.getChildAt(row, 0) != state.cell) || mxUtils.intersects(box,
-				    				new mxRectangle(state.x + state.width - 1, state.y, 1, state.height)))
-		    					{
-				    				cursor ='col-resize';
-		    					}
-		    					else if ((mxUtils.intersects(box, new mxRectangle(state.x, state.y - 1, state.width, 1)) &&
-			    					this.model.getChildAt(table, 0) != row) || mxUtils.intersects(box,
-			    					new mxRectangle(state.x, state.y + state.height - 1, state.width, 1)))
-		    					{
-				    				cursor ='row-resize';
-		    					}
+	
+					    		if (this.isTableCell(state.cell))
+					    		{
+				    				var row = this.model.getParent(state.cell);
+			    					var table = this.model.getParent(row);
+	
+			    					if ((mxUtils.intersects(box, new mxRectangle(state.x - 1, state.y, 1, state.height)) &&
+					    				this.model.getChildAt(row, 0) != state.cell) || mxUtils.intersects(box,
+					    				new mxRectangle(state.x + state.width - 1, state.y, 1, state.height)))
+			    					{
+					    				cursor ='col-resize';
+			    					}
+			    					else if ((mxUtils.intersects(box, new mxRectangle(state.x, state.y - 1, state.width, 1)) &&
+				    					this.model.getChildAt(table, 0) != row) || mxUtils.intersects(box,
+				    					new mxRectangle(state.x, state.y + state.height - 1, state.width, 1)))
+			    					{
+					    				cursor ='row-resize';
+			    					}
+					    		}
+					    		
+					    		// Hover for swimlane start sizes inside tables
+					    		var current = state;
+					    		
+					    		while (cursor == null && current != null && (this.isTableCell(current.cell) ||
+					    			this.isTableRow(current.cell) || this.isTable(current.cell)))
+					    		{
+						    		if (this.isSwimlane(current.cell))
+						    		{
+						    			var offset = this.getActualStartSize(current.cell);
+						    			
+			    						if ((offset.x > 0 || offset.width > 0) && mxUtils.intersects(box, new mxRectangle(
+			    							current.x + offset.x - offset.width - 1 + ((offset.x == 0) ? current.width : 0),
+			    							current.y, 1, current.height)))
+			    						{
+				    						cursor ='col-resize';
+			    						}
+			    						else if ((offset.y > 0 || offset.height > 0) && mxUtils.intersects(box, new mxRectangle(
+			    							current.x, current.y + offset.y - offset.height - 1 + ((offset.y == 0) ? current.height : 0),
+			    							current.width, 1)))
+			    						{
+				    						cursor ='row-resize';
+			    						}
+						    		}
+						    		
+						    		current = this.view.getState(this.model.getParent(current.cell));
+					    		}
 				    		}
-		    				
+				    		
 		    				if (cursor != null)
 		    				{
 		    					state.setCursor(cursor);
@@ -2490,7 +2556,11 @@ Graph.prototype.replacePlaceholders = function(cell, str)
 					var name = val.substring(1, val.length - 1);
 					
 					// Workaround for invalid char for getting attribute in older versions of IE
-					if (name.indexOf('{') < 0)
+					if (name == 'id')
+					{
+						tmp = cell.id;
+					}
+					else if (name.indexOf('{') < 0)
 					{
 						var current = cell;
 						
@@ -6601,9 +6671,20 @@ if (typeof mxVertexHandler != 'undefined')
 			this.model.setValue(cell, value);
 		};
 		
+		
+		/**
+		 * Overridden to stop extending tables.
+		 */
+		var graphIsExtendParent = Graph.prototype.isExtendParent; 
+		Graph.prototype.isExtendParent = function(cell)
+		{
+			return graphIsExtendParent.apply(this, arguments) && !this.isTable(cell);
+		};
+		
 		/**
 		 * Overridden to stop moving edge labels between cells.
 		 */
+		var graphGetDropTarget = Graph.prototype.getDropTarget;
 		Graph.prototype.getDropTarget = function(cells, evt, cell, clone)
 		{
 			var model = this.getModel();
@@ -6623,7 +6704,7 @@ if (typeof mxVertexHandler != 'undefined')
 				}
 			}
 			
-			var target = mxGraph.prototype.getDropTarget.apply(this, arguments);
+			var target = graphGetDropTarget.apply(this, arguments);
 			
 			// Always drops rows to tables
 			var rows = true;
@@ -9447,6 +9528,7 @@ if (typeof mxVertexHandler != 'undefined')
 						
 						mxEvent.addGestureListeners(moveHandle, mxUtils.bind(this, function(evt)
 						{
+							this.graph.stopEditing(false);
 							this.graph.selectCellForEvent(rowState.cell, evt);
 							this.graph.graphHandler.start(this.state.cell,
 								mxEvent.getClientX(evt), mxEvent.getClientY(evt),

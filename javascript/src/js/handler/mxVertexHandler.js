@@ -812,6 +812,11 @@ mxVertexHandler.prototype.mouseMove = function(sender, me)
 				{
 					this.customHandles[mxEvent.CUSTOM_HANDLE - this.index].processEvent(me);
 					this.customHandles[mxEvent.CUSTOM_HANDLE - this.index].active = true;
+					
+					if (this.isMoveCustomHandlePreviewToFront(this.customHandles[mxEvent.CUSTOM_HANDLE - this.index]))
+					{					
+						this.moveToFront();
+					}
 				}
 			}
 			else if (this.index == mxEvent.LABEL_HANDLE)
@@ -836,6 +841,16 @@ mxVertexHandler.prototype.mouseMove = function(sender, me)
 	{
 		me.consume(false);
 	}
+};
+
+/**
+ * Function: isMoveCustomHandlePreviewToFront
+ * 
+ * Returns true if the preview for the given custom handle should be moved to front.
+ */
+mxVertexHandler.prototype.isMoveCustomHandlePreviewToFront = function(handle)
+{
+	return true;
 };
 
 /**
@@ -1140,6 +1155,25 @@ mxVertexHandler.prototype.updateLivePreview = function(me)
 	this.redrawHandles();
 	
 	// Moves live preview to front
+	this.moveToFront();
+	
+	// Hides folding icon
+	if (this.state.control != null && this.state.control.node != null)
+	{
+		this.state.control.node.style.visibility = 'hidden';
+	}
+	
+	// Restores current state
+	this.state.setState(tempState);
+};
+
+/**
+ * Function: moveToFront
+ * 
+ * Handles the event by applying the changes to the geometry.
+ */
+mxVertexHandler.prototype.moveToFront = function()
+{
 	if ((this.state.text != null && this.state.text.node != null &&
 		this.state.text.node.nextSibling != null) ||
 		(this.state.shape != null && this.state.shape.node != null &&
@@ -1156,15 +1190,6 @@ mxVertexHandler.prototype.updateLivePreview = function(me)
 			this.state.text.node.parentNode.appendChild(this.state.text.node);
 		}
 	}
-	
-	// Hides folding icon
-	if (this.state.control != null && this.state.control.node != null)
-	{
-		this.state.control.node.style.visibility = 'hidden';
-	}
-	
-	// Restores current state
-	this.state.setState(tempState);
 };
 
 /**
@@ -1179,7 +1204,11 @@ mxVertexHandler.prototype.mouseUp = function(sender, me)
 		var point = new mxPoint(me.getGraphX(), me.getGraphY());
 		var index = this.index;
 		this.index = null;
-
+		
+		// Required to restore order in case of no change
+		this.state.view.invalidate(this.state.cell, false, false);
+		this.state.view.validate();
+		
 		this.graph.getModel().beginUpdate();
 		try
 		{
