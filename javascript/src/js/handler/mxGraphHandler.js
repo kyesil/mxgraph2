@@ -480,7 +480,7 @@ mxGraphHandler.prototype.isDelayedSelection = function(cell, me)
 		}
 	}
 	
-	return false;
+	return this.graph.isToggleEvent(me.getEvent());
 };
 
 /**
@@ -510,15 +510,18 @@ mxGraphHandler.prototype.selectDelayed = function(me)
 			}
 			else
 			{
-				var model = this.graph.getModel();
-				var parent = model.getParent(cell);
-				
-				while (this.graph.view.getState(parent) != null &&
-					(model.isVertex(parent) || model.isEdge(parent)) &&
-					this.isPropagateSelectionCell(cell, false))
+				if (!this.graph.isToggleEvent(me.getEvent()))
 				{
-					cell = parent;
-					parent = model.getParent(cell);
+					var model = this.graph.getModel();
+					var parent = model.getParent(cell);
+					
+					while (this.graph.view.getState(parent) != null &&
+						(model.isVertex(parent) || model.isEdge(parent)) &&
+						this.isPropagateSelectionCell(cell, false))
+					{
+						cell = parent;
+						parent = model.getParent(cell);
+					}
 				}
 	
 				this.graph.selectCellForEvent(cell, me.getEvent());
@@ -1534,7 +1537,8 @@ mxGraphHandler.prototype.mouseUp = function(sender, me)
 				
 				if (graph.isSplitEnabled() && graph.isSplitTarget(target, this.cells, me.getEvent()))
 				{
-					graph.splitEdge(target, this.cells, null, dx, dy);
+					graph.splitEdge(target, this.cells, null, dx, dy,
+						me.getGraphX(), me.getGraphY());
 				}
 				else
 				{
