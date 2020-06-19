@@ -1557,23 +1557,26 @@ var PageSetupDialog = function(editorUi)
 		{
 			changeImageLink.removeAttribute('title');
 			changeImageLink.style.fontSize = '';
-			changeImageLink.innerHTML = mxResources.get('change') + '...';
+			changeImageLink.innerHTML = mxUtils.htmlEntities(mxResources.get('change')) + '...';
 		}
 		else
 		{
 			changeImageLink.setAttribute('title', newBackgroundImage.src);
 			changeImageLink.style.fontSize = '11px';
-			changeImageLink.innerHTML = newBackgroundImage.src.substring(0, 42) + '...';
+			changeImageLink.innerHTML = mxUtils.htmlEntities(newBackgroundImage.src.substring(0, 42)) + '...';
 		}
 	};
 	
 	mxEvent.addListener(changeImageLink, 'click', function(evt)
 	{
-		editorUi.showBackgroundImageDialog(function(image)
+		editorUi.showBackgroundImageDialog(function(image, failed)
 		{
-			newBackgroundImage = image;
-			updateBackgroundImage();
-		});
+			if (!failed)
+			{
+				newBackgroundImage = image;
+				updateBackgroundImage();
+			}
+		}, newBackgroundImage);
 		
 		mxEvent.consume(evt);
 	});
@@ -1605,10 +1608,11 @@ var PageSetupDialog = function(editorUi)
 	var applyBtn = mxUtils.button(mxResources.get('apply'), function()
 	{
 		editorUi.hideDialog();
+		var gridSize = parseInt(gridSizeInput.value);
 		
-		if (graph.gridSize !== gridSizeInput.value)
+		if (!isNaN(gridSize) && graph.gridSize !== gridSize)
 		{
-			graph.setGridSize(parseInt(gridSizeInput.value));
+			graph.setGridSize(gridSize);
 		}
 
 		var change = new ChangePageSetup(editorUi, newBackgroundColor,
@@ -2688,7 +2692,7 @@ FilenameDialog.createFileTypes = function(editorUi, nameInput, types)
 	 * Selects tables before cells and rows.
 	 */
 	var mxGraphHandlerIsPropagateSelectionCell = mxGraphHandler.prototype.isPropagateSelectionCell;
-	mxGraphHandler.prototype.isPropagateSelectionCell = function(cell, immediate)
+	mxGraphHandler.prototype.isPropagateSelectionCell = function(cell, immediate, me)
 	{
 		var result = false;
 		var parent = this.graph.model.getParent(cell)
@@ -2718,8 +2722,9 @@ FilenameDialog.createFileTypes = function(editorUi, nameInput, types)
 				}
 				
 				result = !this.graph.selectionCellsHandler.isHandled(table) ||
-					this.graph.isCellSelected(cell) || (this.graph.isTableCell(cell) &&
-					this.graph.isCellSelected(parent));
+					(this.graph.isCellSelected(table) && this.graph.isToggleEvent(me.getEvent())) ||
+					(this.graph.isCellSelected(cell) && !this.graph.isToggleEvent(me.getEvent())) ||
+					(this.graph.isTableCell(cell) && this.graph.isCellSelected(parent));
 			}
 		}
 		

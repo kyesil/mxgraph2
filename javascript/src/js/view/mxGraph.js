@@ -2638,7 +2638,8 @@ mxGraph.prototype.click = function(me)
 		{
 			cell = this.getSwimlaneAt(me.getGraphX(), me.getGraphY());
 				
-			if (!this.isToggleEvent(evt) && cell != null)
+			if (cell != null && (!this.isToggleEvent(evt) ||
+				!mxEvent.isAltDown(evt)))
 			{
 				var temp = cell;
 				var swimlanes = [];
@@ -2661,11 +2662,12 @@ mxGraph.prototype.click = function(me)
 					swimlanes.splice(0, 0, cell);
 					swimlanes.push(cell);
 					
-					for (var i = 0; i < swimlanes.length - 2; i++)
+					for (var i = 0; i < swimlanes.length - 1; i++)
 					{
 						if (this.isCellSelected(swimlanes[i]))
 						{
-							cell = swimlanes[i + 1];
+							cell = swimlanes[(this.isToggleEvent(evt)) ?
+								i : i + 1];
 						}
 					}
 				}
@@ -9326,7 +9328,7 @@ mxGraph.prototype.getActualStartSize = function(swimlane, ignoreState)
 {
 	var result = new mxRectangle();
 	
-	if (this.isSwimlane(swimlane))
+	if (this.isSwimlane(swimlane, ignoreState))
 	{
 		var style = this.getCurrentCellStyle(swimlane, ignoreState);
 		var size = parseInt(mxUtils.getValue(style, mxConstants.STYLE_STARTSIZE,
@@ -9514,12 +9516,15 @@ mxGraph.prototype.setBorder = function(value)
  * Parameters:
  * 
  * cell - <mxCell> to be checked.
+ * ignoreState - Optional boolean that specifies if the cell state should be ignored.
  */
-mxGraph.prototype.isSwimlane = function(cell)
+mxGraph.prototype.isSwimlane = function(cell, ignoreState)
 {
-	if (cell != null && this.model.getParent(cell) != this.model.getRoot() && !this.model.isEdge(cell))
+	if (cell != null && this.model.getParent(cell) != this.model.getRoot() &&
+		!this.model.isEdge(cell))
 	{
-		return this.getCurrentCellStyle(cell)[mxConstants.STYLE_SHAPE] == mxConstants.SHAPE_SWIMLANE;
+		return this.getCurrentCellStyle(cell, ignoreState)
+			[mxConstants.STYLE_SHAPE] == mxConstants.SHAPE_SWIMLANE;
 	}
 	
 	return false;

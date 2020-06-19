@@ -412,7 +412,7 @@ mxGraphHandler.prototype.setRemoveCellsFromParent = function(value)
  * Returns true if the given cell and parent should propagate
  * selection state to the parent.
  */
-mxGraphHandler.prototype.isPropagateSelectionCell = function(cell, immediate)
+mxGraphHandler.prototype.isPropagateSelectionCell = function(cell, immediate, me)
 {
 	var parent = this.graph.model.getParent(cell);
 
@@ -428,7 +428,13 @@ mxGraphHandler.prototype.isPropagateSelectionCell = function(cell, immediate)
 	}
 	else
 	{
-		return !this.graph.isCellSelected(parent);
+		return (!this.graph.isToggleEvent(me.getEvent()) ||
+			(!this.graph.isSiblingSelected(cell) &&
+			!this.graph.isCellSelected(cell) &&
+			(!this.graph.isSwimlane(parent)) ||
+			this.graph.isCellSelected(parent))) &&
+			(this.graph.isToggleEvent(me.getEvent()) ||
+			!this.graph.isCellSelected(parent));
 	}
 };
 
@@ -442,15 +448,15 @@ mxGraphHandler.prototype.getInitialCellForEvent = function(me)
 {
 	var state = me.getState();
 	
-	if (!this.graph.isToggleEvent(me.getEvent()) && state != null &&
-		!this.graph.isCellSelected(state.cell))
+	if ((!this.graph.isToggleEvent(me.getEvent()) || !mxEvent.isAltDown(me.getEvent())) &&
+		state != null && !this.graph.isCellSelected(state.cell))
 	{
 		var model = this.graph.model;
 		var next = this.graph.view.getState(model.getParent(state.cell));
 
 		while (next != null && !this.graph.isCellSelected(next.cell) &&
 			(model.isVertex(next.cell) || model.isEdge(next.cell)) &&
-			this.isPropagateSelectionCell(state.cell, true))
+			this.isPropagateSelectionCell(state.cell, true, me))
 		{
 			state = next;
 			next = this.graph.view.getState(this.graph.getModel().getParent(state.cell));
@@ -467,7 +473,7 @@ mxGraphHandler.prototype.getInitialCellForEvent = function(me)
  */
 mxGraphHandler.prototype.isDelayedSelection = function(cell, me)
 {
-	if (!this.graph.isToggleEvent(me.getEvent()))
+	if (!this.graph.isToggleEvent(me.getEvent()) || !mxEvent.isAltDown(me.getEvent()))
 	{
 		while (cell != null)
 		{
@@ -480,7 +486,7 @@ mxGraphHandler.prototype.isDelayedSelection = function(cell, me)
 		}
 	}
 	
-	return this.graph.isToggleEvent(me.getEvent());
+	return this.graph.isToggleEvent(me.getEvent()) && !mxEvent.isAltDown(me.getEvent());
 };
 
 /**
@@ -510,14 +516,15 @@ mxGraphHandler.prototype.selectDelayed = function(me)
 			}
 			else
 			{
-				if (!this.graph.isToggleEvent(me.getEvent()))
+				if (!this.graph.isToggleEvent(me.getEvent()) ||
+					!mxEvent.isAltDown(me.getEvent()))
 				{
 					var model = this.graph.getModel();
 					var parent = model.getParent(cell);
 					
 					while (this.graph.view.getState(parent) != null &&
 						(model.isVertex(parent) || model.isEdge(parent)) &&
-						this.isPropagateSelectionCell(cell, false))
+						this.isPropagateSelectionCell(cell, false, me))
 					{
 						cell = parent;
 						parent = model.getParent(cell);
