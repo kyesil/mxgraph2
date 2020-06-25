@@ -939,11 +939,7 @@
 	mxShape.prototype.paint = function(c)
 	{
 		// NOTE: getValue does not return a boolean value so !('0') would return true here and below
-		if (this.style != null && mxUtils.getValue(this.style, 'comic', '0') != '0' && c.handHiggle == null)
-		{
-			c.handJiggle = new HandJiggle(c, mxUtils.getValue(this.style, 'jiggle', this.defaultJiggle));
-		}
-		
+		c.handJiggle = this.createHandJiggle(c);
 		mxShapePaint0.apply(this, arguments);
 		
 		if (c.handJiggle != null)
@@ -952,17 +948,34 @@
 			delete c.handJiggle;
 		}
 	};
+		
+	// Returns a new HandJiggle canvas
+	mxShape.prototype.createComicCanvas = function(c)
+	{
+		return new HandJiggle(c, mxUtils.getValue(this.style, 'jiggle', this.defaultJiggle));
+	};
+	
+	// Overrides to avoid call to rect
+	mxShape.prototype.createHandJiggle = function(c)
+	{
+		if (!this.outline && c.handHiggle == null && this.style != null &&
+			mxUtils.getValue(this.style, 'comic', '0') != '0')
+		{
+			return this.createComicCanvas(c);
+		}
+		
+		return null;
+	};
 	
 	// Sets default jiggle for diamond
 	mxRhombus.prototype.defaultJiggle = 2;
 
-	/**
-	 * Overrides to avoid call to rect
-	 */
+	// Overrides to avoid call to rect
 	var mxRectangleShapeIsHtmlAllowed0 = mxRectangleShape.prototype.isHtmlAllowed;
 	mxRectangleShape.prototype.isHtmlAllowed = function()
 	{
-		return (this.style == null || mxUtils.getValue(this.style, 'comic', '0') == '0') &&
+		return !this.outline && (this.style == null || (mxUtils.getValue(this.style, 'comic', '0') == '0' &&
+			mxUtils.getValue(this.style, 'sketch', (urlParams['rough'] == '1') ? '1' : '0') == '0')) &&
 			mxRectangleShapeIsHtmlAllowed0.apply(this, arguments);
 	};
 	
@@ -1020,7 +1033,6 @@
 				}
 				else
 				{
-					
 					c.moveTo(x, y);
 					c.lineTo(x + w, y);
 					c.lineTo(x + w, y + h);
@@ -1907,6 +1919,11 @@
 		if (vertex != null)
 		{
 			size = mxUtils.getValue(vertex.style, 'size', size);
+		}
+		
+		if (fixed)
+		{
+			size *= vertex.view.scale;
 		}
 		
 		var x = bounds.x;
@@ -3706,7 +3723,7 @@
 							Math.round(Math.max(0, Math.min(bounds.width, pt.x - bounds.x)));
 				}, false, null, function(me)
 				{
-					if (mxEvent.isShiftDown(me.getEvent()))
+					if (mxEvent.isControlDown(me.getEvent()))
 					{
 						var graph = state.view.graph;
 						
