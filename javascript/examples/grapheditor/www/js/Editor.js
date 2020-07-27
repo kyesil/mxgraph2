@@ -227,7 +227,12 @@ Editor.fullscreenLargeImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACA
 Editor.roughFillStyles = [{val: 'auto', dispName: 'Auto'}, {val: 'hachure', dispName: 'Hachure'}, {val: 'solid', dispName: 'Solid'},
 	{val: 'zigzag', dispName: 'ZigZag'}, {val: 'cross-hatch', dispName: 'Cross Hatch'}, {val: 'dots', dispName: 'Dots'},
 	{val: 'dashed', dispName: 'Dashed'}, {val: 'zigzag-line', dispName: 'ZigZag Line'}];
-	
+
+/**
+ * Graph themes for the format panel.
+ */
+Editor.themes = null;
+
 /**
  * Specifies the image URL to be used for the transparent background.
  */
@@ -2586,13 +2591,17 @@ FilenameDialog.createFileTypes = function(editorUi, nameInput, types)
 		drawPageBreaks(this.verticalPageBreaks);
 	};
 	
-	// Disables removing relative children from parents
+	// Disables removing relative children and table rows and cells from parents
 	var mxGraphHandlerShouldRemoveCellsFromParent = mxGraphHandler.prototype.shouldRemoveCellsFromParent;
 	mxGraphHandler.prototype.shouldRemoveCellsFromParent = function(parent, cells, evt)
 	{
 		for (var i = 0; i < cells.length; i++)
 		{
-			if (this.graph.getModel().isVertex(cells[i]))
+			if (this.graph.isTableCell(cells[i]) || this.graph.isTableRow(cells[i]))
+			{
+				return false;
+			}
+			else if (this.graph.getModel().isVertex(cells[i]))
 			{
 				var geo = this.graph.getCellGeometry(cells[i]);
 				
@@ -2706,12 +2715,12 @@ FilenameDialog.createFileTypes = function(editorUi, nameInput, types)
 		
 		if (immediate)
 		{
-			var geo = this.graph.getCellGeometry(cell);
+			var geo = (this.graph.model.isEdge(cell)) ? null :
+				this.graph.getCellGeometry(cell);
 			
-			return !this.graph.model.isEdge(cell) &&
-				!this.graph.model.isEdge(parent) &&
+			result = !this.graph.model.isEdge(parent) &&
 				!this.graph.isSiblingSelected(cell) &&
-				(geo == null || geo.relative ||
+				((geo != null && geo.relative) ||
 				!this.graph.isContainer(parent) ||
 				this.graph.isPart(cell));
 		}

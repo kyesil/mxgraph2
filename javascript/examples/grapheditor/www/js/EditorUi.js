@@ -14,6 +14,8 @@ EditorUi = function(editor, container, lightbox)
 	
 	var graph = this.editor.graph;
 	graph.lightbox = lightbox;
+	this.initialDefaultVertexStyle = mxUtils.clone(graph.defaultVertexStyle);
+	this.initialDefaultEdgeStyle = mxUtils.clone(graph.defaultEdgeStyle);
 
 	// Faster scrollwheel zoom is possible with CSS transforms
 	if (graph.useCssTransforms)
@@ -447,8 +449,14 @@ EditorUi = function(editor, container, lightbox)
 		};
 		
 		// Stores the current style and assigns it to new cells
-		var styles = ['rounded', 'shadow', 'glass', 'dashed', 'dashPattern', 'comic', 'labelBackgroundColor'];
-		var connectStyles = ['shape', 'edgeStyle', 'curved', 'rounded', 'elbow', 'comic', 'jumpStyle', 'jumpSize'];
+		var styles = ['rounded', 'shadow', 'glass', 'dashed', 'dashPattern', 'labelBackgroundColor',
+			'comic', 'sketch', 'fillWeight', 'hachureGap', 'hachureAngle', 'jiggle',
+			'disableMultiStroke', 'disableMultiStrokeFill', 'fillStyle', 'curveFitting',
+			'simplification', 'sketchStyle'];
+		var connectStyles = ['shape', 'edgeStyle', 'curved', 'rounded', 'elbow', 'jumpStyle', 'jumpSize',
+			'comic', 'sketch', 'fillWeight', 'hachureGap', 'hachureAngle', 'jiggle',
+			'disableMultiStroke', 'disableMultiStrokeFill', 'fillStyle', 'curveFitting',
+			'simplification', 'sketchStyle'];
 		
 		// Note: Everything that is not in styles is ignored (styles is augmented below)
 		this.setDefaultStyle = function(cell)
@@ -561,9 +569,9 @@ EditorUi = function(editor, container, lightbox)
 		}
 	
 		// Implements a global current style for edges and vertices that is applied to new cells
-		var insertHandler = function(cells, asText)
+		var insertHandler = function(cells, asText, model)
 		{
-			var model = graph.getModel();
+			model = (model != null) ? model : graph.getModel();
 			
 			model.beginUpdate();
 			try
@@ -661,6 +669,8 @@ EditorUi = function(editor, container, lightbox)
 		{
 			insertHandler(evt.getProperty('cells'), true);
 		});
+		
+		this.insertHandler = insertHandler;
 		
 		graph.connectionHandler.addListener(mxEvent.CONNECT, function(sender, evt)
 		{
@@ -1058,6 +1068,11 @@ EditorUi.prototype.init = function()
 	
 	if (!graph.standalone)
 	{
+		if (urlParams['shape-picker'] != '0')
+		{
+			this.installShapePicker();
+		}
+		
 		// Hides tooltips and connection points when scrolling
 		mxEvent.addListener(graph.container, 'scroll', mxUtils.bind(this, function()
 		{
@@ -1126,6 +1141,273 @@ EditorUi.prototype.init = function()
 		{
 			this.format.init();
 		}
+	}
+};
+
+/**
+ * Returns true if the given event should start editing. This implementation returns true.
+ */
+EditorUi.prototype.installShapePicker = function()
+{
+	var graph = this.editor.graph;
+	var ui = this;
+
+	// Uses this event to process mouseDown to check the selection state before it is changed
+	graph.addListener(mxEvent.FIRE_MOUSE_EVENT, mxUtils.bind(this, function(sender, evt)
+	{
+		if (evt.getProperty('eventName') == 'mouseDown')
+		{
+			ui.hideShapePicker();
+		}
+	}));
+	
+	graph.addListener(mxEvent.ESCAPE, mxUtils.bind(this, function()
+	{
+		ui.hideShapePicker(true);
+	}));
+	
+	graph.getSelectionModel().addListener(mxEvent.CHANGE, mxUtils.bind(this, function()
+	{
+		ui.hideShapePicker(true);
+	}));
+	
+	graph.getModel().addListener(mxEvent.CHANGE, mxUtils.bind(this, function()
+	{
+		ui.hideShapePicker(true);
+	}));
+	
+	// Counts as popup menu
+	var popupMenuHandlerIsMenuShowing = graph.popupMenuHandler.isMenuShowing;
+	 
+	graph.popupMenuHandler.isMenuShowing = function()
+	{
+		return popupMenuHandlerIsMenuShowing.apply(this, arguments) || ui.shapePicker != null;
+	};
+	
+	// Adds dbl click dialog for inserting shapes
+	var graphDblClick = graph.dblClick;
+	
+	graph.dblClick = function(evt, cell)
+	{
+		if (this.isEnabled())
+		{
+			if (cell == null && ui.sidebar != null && !mxEvent.isShiftDown(evt))
+			{
+				mxEvent.consume(evt);
+				var pt = mxUtils.convertPoint(this.container, mxEvent.getClientX(evt), mxEvent.getClientY(evt));
+				ui.showShapePicker(pt.x, pt.y);
+			}
+			else
+			{
+				graphDblClick.apply(this, arguments);
+			}
+		}
+	};
+	
+	if (this.hoverIcons != null)
+	{
+		var hoverIconsDrag = this.hoverIcons.drag;
+		
+		this.hoverIcons.drag = function()
+		{
+			ui.hideShapePicker();
+			hoverIconsDrag.apply(this, arguments);
+		};
+		
+		var hoverIconsExecute = this.hoverIcons.execute;
+		
+		this.hoverIcons.execute = function(state, dir, me)
+		{
+			var evt = me.getEvent();
+			
+			if (!mxEvent.isControlDown(evt) && !mxEvent.isShiftDown(evt))
+			{
+				this.graph.connectVertex(state.cell, dir, this.graph.defaultEdgeLength, evt, null, null, mxUtils.bind(this, function(x, y, execute)
+				{
+					var temp = graph.getCompositeParent(state.cell);
+					var geo = graph.getCellGeometry(temp);
+					me.consume();
+					
+					while (temp != null && graph.model.isVertex(temp) && geo != null && geo.relative)
+					{
+						cell = temp;
+						temp = graph.model.getParent(cell)
+						geo = graph.getCellGeometry(temp);
+					}
+					
+					ui.showShapePicker(me.getGraphX(), me.getGraphY(), temp, mxUtils.bind(this, function(cell)
+					{
+						execute(cell);
+					}));
+				}), mxUtils.bind(this, function(result)
+				{
+					this.graph.selectCellsForConnectVertex(result, evt, this);
+				}));
+			}
+			else
+			{
+				hoverIconsExecute.apply(this, arguments);
+			}
+		};
+	}
+};
+
+/**
+ * Creates a temporary graph instance for rendering off-screen content.
+ */
+EditorUi.prototype.showShapePicker = function(x, y, source, callback)
+{
+	var cells = this.getCellsForShapePicker(source);
+	
+	if (cells != null && cells.length > 0)
+	{
+		var ui = this;
+		var graph = this.editor.graph;
+		var div = document.createElement('div');
+		var sourceState = graph.view.getState(source);
+		var style = (source != null && (sourceState == null ||
+			!graph.isTransparentState(sourceState))) ?
+			graph.copyStyle(source) : null;
+		
+		// Do not place entry under pointer for touch devices
+		var off = -4;
+		
+		div.className = 'geToolbarContainer geSidebarContainer geSidebar';
+		div.style.cssText = 'position:absolute;left:' + (x - off) + 'px;top:' +
+			(y - off) + 'px;width:140px;border-radius:10px;padding:4px;text-align:center;' +
+			'box-shadow:0px 0px 3px 1px #d1d1d1;padding: 6px 0 8px 0;';
+		
+		if (graph.background != null && graph.background != mxConstants.NONE)
+		{
+			div.style.backgroundColor = graph.background;
+		}
+		
+		graph.container.appendChild(div);
+		
+		var addCell = mxUtils.bind(this, function(cell)
+		{
+			// Wrapper needed to catch events
+			var node = document.createElement('a');
+			node.className = 'geItem';
+			node.style.cssText = 'position:relative;display:inline-block;position:relative;' +
+				'width:30px;height:30px;cursor:pointer;overflow:hidden;padding:3px 0 0 3px;';
+			div.appendChild(node);
+			
+			if (style != null)
+			{
+				this.sidebar.graph.pasteStyle(style, [cell]);
+			}
+			else
+			{
+				ui.insertHandler([cell], cell.value != '', this.sidebar.graph.model);
+			}
+			
+			this.sidebar.createThumb([cell], 25, 25, node, null, true, false, cell.geometry.width, cell.geometry.height);
+
+			mxEvent.addListener(node, 'click', function()
+			{
+				var clone = graph.cloneCell(cell);
+				
+				if (callback != null)
+				{
+					callback(clone);
+				}
+				else
+				{
+					clone.geometry.x = graph.snap(Math.round(x / graph.view.scale) -
+						graph.view.translate.x - cell.geometry.width / 2);
+					clone.geometry.y = graph.snap(Math.round(y / graph.view.scale) -
+						graph.view.translate.y - cell.geometry.height / 2);
+					
+					graph.model.beginUpdate();
+					try
+					{
+						graph.addCell(clone);
+					}
+					finally
+					{
+						graph.model.endUpdate();
+					}
+					
+					graph.setSelectionCell(clone);
+					graph.scrollCellToVisible(clone);
+					graph.startEditingAtCell(clone);
+					
+					if (ui.hoverIcons != null)
+					{
+						ui.hoverIcons.update(graph.view.getState(clone));
+					}
+				}
+				
+				ui.hideShapePicker();
+			});
+		});
+		
+		for (var i = 0; i < cells.length; i++)
+		{
+			addCell(cells[i]);
+		}
+		
+		if (ui.hoverIcons != null)
+		{
+			ui.hoverIcons.reset();
+		}
+		
+		graph.popupMenuHandler.hideMenu();
+		graph.tooltipHandler.hideTooltip();
+		this.hideCurrentMenu();
+		this.hideShapePicker();
+		
+		this.shapePickerCallback = callback;
+		this.shapePicker = div;
+	}
+};
+
+/**
+ * Creates a temporary graph instance for rendering off-screen content.
+ */
+EditorUi.prototype.getCellsForShapePicker = function(cell)
+{
+	var createVertex = mxUtils.bind(this, function(style, w, h, value)
+	{
+		return this.editor.graph.createVertex(null, null, value || '', 0, 0, w || 120, h || 60, style, false);
+	});
+	
+	return [(cell != null) ? this.editor.graph.cloneCell(cell) :
+			createVertex('text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;', 40, 20, 'Text'),
+		createVertex('whiteSpace=wrap;html=1;'),
+		createVertex('ellipse;whiteSpace=wrap;html=1;', 120, 80),
+		createVertex('rhombus;whiteSpace=wrap;html=1;', 80, 80),
+		createVertex('shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;'),
+		createVertex('shape=trapezoid;perimeter=trapezoidPerimeter;whiteSpace=wrap;html=1;fixedSize=1;', 120, 60),
+		createVertex('shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;', 120, 80),
+		createVertex('shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;', 120, 80),
+		createVertex('shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;'),
+		createVertex('shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;darkOpacity2=0.1;', 120, 80),
+		createVertex('shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;', 80, 100),
+		createVertex('triangle;whiteSpace=wrap;html=1;', 60, 80),
+		createVertex('shape=document;whiteSpace=wrap;html=1;boundedLbl=1;', 120, 80),
+		createVertex('shape=tape;whiteSpace=wrap;html=1;', 120, 100),
+		createVertex('ellipse;shape=cloud;whiteSpace=wrap;html=1;', 120, 80),
+		createVertex('shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;', 60, 80)];
+};
+
+/**
+ * Creates a temporary graph instance for rendering off-screen content.
+ */
+EditorUi.prototype.hideShapePicker = function(cancel)
+{
+	if (this.shapePicker != null)
+	{
+		this.shapePicker.parentNode.removeChild(this.shapePicker);
+		this.shapePicker = null;
+				
+		if (!cancel && this.shapePickerCallback != null)
+		{
+			this.shapePickerCallback();
+		}
+		
+		this.shapePickerCallback = null;
 	}
 };
 
@@ -2447,7 +2729,8 @@ EditorUi.prototype.isPagesEnabled = function()
  */
 EditorUi.prototype.createTemporaryGraph = function(stylesheet)
 {
-	var graph = new Graph(document.createElement('div'), null, null, stylesheet);
+	var graph = new Graph(document.createElement('div'));
+	graph.stylesheet.styles = mxUtils.clone(stylesheet.styles);
 	graph.resetViewOnRootChange = false;
 	graph.setConnectable(false);
 	graph.gridEnabled = false;
@@ -2927,6 +3210,27 @@ EditorUi.prototype.setPageVisible = function(value)
 };
 
 /**
+ * Class: ChangeGridColor
+ *
+ * Undoable change to grid color.
+ */
+function ChangeGridColor(ui, color)
+{
+	this.ui = ui;
+	this.color = color;
+};
+
+/**
+ * Executes selection of a new page.
+ */
+ChangeGridColor.prototype.execute = function()
+{
+	var temp = this.ui.editor.graph.view.gridColor;
+	this.ui.setGridColor(this.color);
+	this.color = temp;
+};
+
+/**
  * Change types
  */
 function ChangePageSetup(ui, color, image, format, pageScale)
@@ -3145,6 +3449,7 @@ EditorUi.prototype.updateActionStates = function()
 	var graph = this.editor.graph;
 	var selected = !graph.isSelectionEmpty();
 	var vertexSelected = false;
+	var groupSelected = false;
 	var edgeSelected = false;
 
 	var cells = graph.getSelectionCells();
@@ -3163,6 +3468,12 @@ EditorUi.prototype.updateActionStates = function()
     		if (graph.getModel().isVertex(cell))
     		{
     			vertexSelected = true;
+    			
+	    		if (graph.getModel().getChildCount(cell) > 0 ||
+	    			graph.isContainer(cell))
+	    		{
+	    			groupSelected = true;
+	    		}
     		}
     		
     		if (edgeSelected && vertexSelected)
@@ -3195,9 +3506,7 @@ EditorUi.prototype.updateActionStates = function()
    	var oneVertexSelected = vertexSelected && graph.getSelectionCount() == 1;
 	this.actions.get('group').setEnabled(graph.getSelectionCount() > 1 ||
 		(oneVertexSelected && !graph.isContainer(graph.getSelectionCell())));
-	this.actions.get('ungroup').setEnabled(graph.getSelectionCount() == 1 &&
-		(graph.getModel().getChildCount(graph.getSelectionCell()) > 0 ||
-		(oneVertexSelected && graph.isContainer(graph.getSelectionCell()))));
+	this.actions.get('ungroup').setEnabled(groupSelected);
    	this.actions.get('removeFromGroup').setEnabled(oneVertexSelected &&
    		graph.getModel().isVertex(graph.getModel().getParent(graph.getSelectionCell())));
 
@@ -3532,13 +3841,7 @@ EditorUi.prototype.createStatusContainer = function()
 {
 	var container = document.createElement('a');
 	container.className = 'geItem geStatus';
-	
-	if (screen.width < 420)
-	{
-		container.style.maxWidth = Math.max(20, screen.width - 320) + 'px';
-		container.style.overflow = 'hidden';
-	}
-	
+
 	return container;
 };
 
