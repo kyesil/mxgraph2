@@ -1213,6 +1213,7 @@ Graph.createSvgImage = function(w, h, data, coordWidth, coordHeight)
  */
 Graph.zapGremlins = function(text)
 {
+	var lastIndex = 0;
 	var checked = [];
 	
 	for (var i = 0; i < text.length; i++)
@@ -1220,14 +1221,20 @@ Graph.zapGremlins = function(text)
 		var code = text.charCodeAt(i);
 		
 		// Removes all control chars except TAB, LF and CR
-		if ((code >= 32 || code == 9 || code == 10 || code == 13) &&
-			code != 0xFFFF && code != 0xFFFE)
+		if (!((code >= 32 || code == 9 || code == 10 || code == 13) &&
+			code != 0xFFFF && code != 0xFFFE))
 		{
-			checked.push(text.charAt(i));
+			checked.push(text.substring(lastIndex, i));
+			lastIndex = i + 1;
 		}
 	}
 	
-	return checked.join('');
+	if (lastIndex > 0 && lastIndex < text.length)
+	{
+		checked.push(text.substring(lastIndex));
+	}
+	
+	return (checked.length == 0) ? text : checked.join('');
 };
 
 /**
@@ -1258,6 +1265,26 @@ Graph.bytesToString = function(arr)
     }
     
     return result.join('');
+};
+
+/**
+ * Turns the given array into a string.
+ */
+Graph.base64EncodeUnicode = function(str)
+{
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+        return String.fromCharCode(parseInt(p1, 16))
+    }));
+};
+
+/**
+ * Turns the given array into a string.
+ */
+Graph.base64DecodeUnicode = function(str)
+{
+    return decodeURIComponent(Array.prototype.map.call(atob(str), function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+    }).join(''));
 };
 
 /**
@@ -4307,7 +4334,8 @@ HoverIcons.prototype.execute = function(state, dir, me)
 	var evt = me.getEvent();
 
 	this.graph.selectCellsForConnectVertex(this.graph.connectVertex(
-		state.cell, dir, this.graph.defaultEdgeLength, evt), evt, this);
+		state.cell, dir, this.graph.defaultEdgeLength, evt, mxEvent.isControlDown(evt),
+		mxEvent.isControlDown(evt)), evt, this);
 };
 
 /**
@@ -6111,42 +6139,18 @@ if (typeof mxVertexHandler != 'undefined')
 		Graph.prototype.createCurrentEdgeStyle = function()
 		{
 			var style = 'edgeStyle=' + (this.currentEdgeStyle['edgeStyle'] || 'none') + ';';
+			var keys = ['shape', 'curved', 'rounded', 'comic', 'sketch', 'fillWeight', 'hachureGap',
+				'hachureAngle', 'jiggle', 'disableMultiStroke', 'disableMultiStrokeFill', 'fillStyle',
+				'curveFitting', 'simplification', 'comicStyle', 'jumpStyle', 'jumpSize'];
 			
-			if (this.currentEdgeStyle['shape'] != null)
+			for (var i = 0; i < keys.length; i++)
 			{
-				style += 'shape=' + this.currentEdgeStyle['shape'] + ';';
+				if (this.currentEdgeStyle[keys[i]] != null)
+				{
+					style += keys[i] + '=' + this.currentEdgeStyle[keys[i]] + ';';
+				}
 			}
 			
-			if (this.currentEdgeStyle['curved'] != null)
-			{
-				style += 'curved=' + this.currentEdgeStyle['curved'] + ';';
-			}
-			
-			if (this.currentEdgeStyle['rounded'] != null)
-			{
-				style += 'rounded=' + this.currentEdgeStyle['rounded'] + ';';
-			}
-
-			if (this.currentEdgeStyle['sketch'] != null)
-			{
-				style += 'sketch=' + this.currentEdgeStyle['sketch'] + ';';
-			}
-
-			if (this.currentEdgeStyle['comic'] != null)
-			{
-				style += 'comic=' + this.currentEdgeStyle['comic'] + ';';
-			}
-
-			if (this.currentEdgeStyle['jumpStyle'] != null)
-			{
-				style += 'jumpStyle=' + this.currentEdgeStyle['jumpStyle'] + ';';
-			}
-
-			if (this.currentEdgeStyle['jumpSize'] != null)
-			{
-				style += 'jumpSize=' + this.currentEdgeStyle['jumpSize'] + ';';
-			}
-
 			// Overrides the global default to match the default edge style
 			if (this.currentEdgeStyle['orthogonalLoop'] != null)
 			{
