@@ -135,6 +135,13 @@ mxVertexHandler.prototype.rotationCursor = 'crosshair';
 mxVertexHandler.prototype.livePreview = false;
 
 /**
+ * Variable: movePreviewToFront
+ * 
+ * Specifies if the live preview should be moved to the front.
+ */
+mxVertexHandler.prototype.movePreviewToFront = false;
+
+/**
  * Variable: manageSizers
  * 
  * Specifies if sizers should be hidden and spaced if the vertex is small.
@@ -853,7 +860,11 @@ mxVertexHandler.prototype.mouseMove = function(sender, me)
 					}
 					else
 					{
-						this.moveToFront();
+						if (this.movePreviewToFront)
+						{
+							this.moveToFront();
+						}
+						
 						this.customHandles[mxEvent.CUSTOM_HANDLE - this.index].positionChanged();
 					}
 				}
@@ -897,9 +908,9 @@ mxVertexHandler.prototype.isGhostPreview = function()
 };
 
 /**
- * Function: rotateVertex
+ * Function: moveLabel
  * 
- * Rotates the vertex.
+ * Moves the label.
  */
 mxVertexHandler.prototype.moveLabel = function(me)
 {
@@ -973,9 +984,9 @@ mxVertexHandler.prototype.rotateVertex = function(me)
 };
 
 /**
- * Function: rotateVertex
+ * Function: resizeVertex
  * 
- * Rotates the vertex.
+ * Risizes the vertex.
  */
 mxVertexHandler.prototype.resizeVertex = function(me)
 {
@@ -1198,7 +1209,10 @@ mxVertexHandler.prototype.updateLivePreview = function(me)
 	this.redrawHandles();
 	
 	// Moves live preview to front
-	this.moveToFront();
+	if (this.movePreviewToFront)
+	{
+		this.moveToFront();
+	}
 	
 	// Hides folding icon
 	if (this.state.control != null && this.state.control.node != null)
@@ -1328,9 +1342,15 @@ mxVertexHandler.prototype.mouseUp = function(sender, me)
 };
 
 /**
- * Function: rotateCell
+ * Function: isRecursiveResize
  * 
- * Rotates the given cell to the given rotation.
+ * Returns the recursiveResize of the give state.
+ * 
+ * Parameters:
+ * 
+ * state - the given <mxCellState>. This implementation takes 
+ * the value of this state.
+ * me - the mouse event.
  */
 mxVertexHandler.prototype.isRecursiveResize = function(state, me)
 {
