@@ -1206,7 +1206,7 @@ EditorUi.prototype.installShapePicker = function()
 		{
 			var evt = me.getEvent();
 			
-			if (!mxEvent.isControlDown(evt) && !mxEvent.isShiftDown(evt))
+			if (!this.graph.isCloneEvent(evt) && !mxEvent.isShiftDown(evt))
 			{
 				this.graph.connectVertex(state.cell, dir, this.graph.defaultEdgeLength, evt, null, null, mxUtils.bind(this, function(x, y, execute)
 				{
@@ -1221,10 +1221,14 @@ EditorUi.prototype.installShapePicker = function()
 						geo = graph.getCellGeometry(temp);
 					}
 					
-					ui.showShapePicker(me.getGraphX(), me.getGraphY(), temp, mxUtils.bind(this, function(cell)
+					// Asynchronous to avoid direct insert after double tap
+					window.setTimeout(mxUtils.bind(this, function()
 					{
-						execute(cell);
-					}), dir);
+						ui.showShapePicker(me.getGraphX(), me.getGraphY(), temp, mxUtils.bind(this, function(cell)
+						{
+							execute(cell);
+						}), dir);
+					}), 30);
 				}), mxUtils.bind(this, function(result)
 				{
 					this.graph.selectCellsForConnectVertex(result, evt, this);
@@ -1260,27 +1264,7 @@ EditorUi.prototype.showShapePicker = function(x, y, source, callback, direction)
 		div.style.cssText = 'position:absolute;left:' + x + 'px;top:' + y +
 			'px;width:140px;border-radius:10px;padding:4px;text-align:center;' +
 			'box-shadow:0px 0px 3px 1px #d1d1d1;padding: 6px 0 8px 0;';
-		
-		if (direction == mxConstants.DIRECTION_NORTH)
-		{
-			mxUtils.setPrefixedStyle(div.style, 'transform', 'translate(-50%,-100%)');
-		}
-		else if (direction == mxConstants.DIRECTION_SOUTH)
-		{
-			mxUtils.setPrefixedStyle(div.style, 'transform', 'translate(-50%,0%)');
-		}
-		else if (direction == mxConstants.DIRECTION_WEST)
-		{
-			mxUtils.setPrefixedStyle(div.style, 'transform', 'translate(-100%,-50%)');
-		}
-		else if (direction == mxConstants.DIRECTION_EAST)
-		{
-			mxUtils.setPrefixedStyle(div.style, 'transform', 'translate(0%,-50%)');
-		}
-		else
-		{
-			mxUtils.setPrefixedStyle(div.style, 'transform', 'translate(-22px,-22px)');
-		}
+		mxUtils.setPrefixedStyle(div.style, 'transform', 'translate(-22px,-22px)');
 		
 		if (graph.background != null && graph.background != mxConstants.NONE)
 		{
@@ -4944,9 +4928,11 @@ EditorUi.prototype.createKeyHandler = function(editor)
 		keyHandler.bindControlKey(35, function() { if (graph.isEnabled()) { graph.foldCells(false); }}); // Ctrl+End
 		keyHandler.bindControlKey(13, function() { ui.ctrlEnter(); }); // Ctrl+Enter
 		keyHandler.bindAction(8, false, 'delete'); // Backspace
-		keyHandler.bindAction(8, true, 'deleteAll'); // Shift+Backspace
+		keyHandler.bindAction(8, true, 'deleteAll'); // Ctrl+Backspace
+		keyHandler.bindAction(8, false, 'deleteLabels', true); // Shift+Backspace
 		keyHandler.bindAction(46, false, 'delete'); // Delete
 		keyHandler.bindAction(46, true, 'deleteAll'); // Ctrl+Delete
+		keyHandler.bindAction(46, false, 'deleteLabels', true); // Shift+Delete
 		keyHandler.bindAction(36, false, 'resetView'); // Home
 		keyHandler.bindAction(72, true, 'fitWindow', true); // Ctrl+Shift+H
 		keyHandler.bindAction(74, true, 'fitPage'); // Ctrl+J
