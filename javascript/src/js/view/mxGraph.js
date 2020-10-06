@@ -4146,6 +4146,23 @@ mxGraph.prototype.ungroupCells = function(cells)
 
 					this.cellsAdded(children, parent, index, null, null, true);
 					result = result.concat(children);
+					
+					// Fix relative child cells
+					for (var j = 0; j < children.length; j++)
+					{
+						var state = this.view.getState(children[j]);
+						var geo = this.getCellGeometry(children[j]);
+						
+						if (state != null && geo != null && geo.relative)
+						{
+							geo = geo.clone();
+							geo.x = state.origin.x;
+							geo.y = state.origin.y;
+							geo.relative = false;
+							
+							this.model.setGeometry(children[j], geo);
+						}
+					}
 				}
 			}
 
@@ -5904,8 +5921,8 @@ mxGraph.prototype.cellResized = function(cell, bounds, ignoreRelative, recurse)
 mxGraph.prototype.resizeChildCells = function(cell, newGeo)
 {
 	var geo = this.model.getGeometry(cell);
-	var dx = newGeo.width / geo.width;
-	var dy = newGeo.height / geo.height;
+	var dx = (geo.width != 0) ? newGeo.width / geo.width : 1;
+	var dy = (geo.height != 0) ? newGeo.height / geo.height : 1;
 	var childCount = this.model.getChildCount(cell);
 	
 	for (var i = 0; i < childCount; i++)
@@ -6100,6 +6117,7 @@ mxGraph.prototype.moveCells = function(cells, dx, dy, clone, target, evt, mappin
 	{
 		// Removes descendants with ancestors in cells to avoid multiple moving
 		cells = this.model.getTopmostCells(cells);
+		var origCells = cells;
 		
 		this.model.beginUpdate();
 		try
@@ -6177,6 +6195,23 @@ mxGraph.prototype.moveCells = function(cells, dx, dy, clone, target, evt, mappin
 			{
 				var index = this.model.getChildCount(target);
 				this.cellsAdded(cells, target, index, null, null, true);
+				
+				// Restores parent edge on cloned edge labels
+				if (clone)
+				{
+					for (var i = 0; i < cells.length; i++)
+					{
+						var geo = this.getCellGeometry(cells[i]);
+						var parent = this.model.getParent(origCells[i]);
+						
+						if (geo != null && geo.relative &&
+							this.model.isEdge(parent) &&
+							this.model.contains(parent))
+						{
+							this.model.add(parent, cells[i]);
+						}
+					}
+				}
 			}
 
 			// Dispatches a move event
