@@ -516,7 +516,7 @@ EditorUi = function(editor, container, lightbox)
 	
 		// Keys that should be ignored if the cell has a value (known: new default for all cells is html=1 so
 	    // for the html key this effecticely only works for edges inserted via the connection handler)
-		var valueStyles = ['fontFamily', 'fontSize', 'fontColor'];
+		var valueStyles = ['fontFamily', 'fontSource', 'fontSize', 'fontColor'];
 		
 		// Keys that always update the current edge style regardless of selection
 		var alwaysEdgeStyles = ['edgeStyle', 'startArrow', 'startFill', 'startSize', 'endArrow',
@@ -2139,7 +2139,10 @@ EditorUi.prototype.initCanvas = function()
 				});
 			}
 	
-			this.addChromelessToolbarItems(addButton);
+			if (urlParams['openInSameWin'] != '1')
+			{
+				this.addChromelessToolbarItems(addButton);
+			}
 	
 			if (this.editor.editButtonLink != null || this.editor.editButtonFunc != null)
 			{
@@ -4066,10 +4069,15 @@ EditorUi.prototype.showDialog = function(elt, w, h, modal, closable, onClose, no
 /**
  * Displays a print dialog.
  */
-EditorUi.prototype.hideDialog = function(cancel, isEsc)
+EditorUi.prototype.hideDialog = function(cancel, isEsc, matchContainer)
 {
 	if (this.dialogs != null && this.dialogs.length > 0)
 	{
+		if (matchContainer != null && matchContainer != this.dialog.container.firstChild)
+		{
+			return;
+		}
+		
 		var dlg = this.dialogs.pop();
 		
 		if (dlg.close(cancel, isEsc) == false) 
