@@ -836,7 +836,12 @@ mxText.prototype.redrawHtmlShapeWithCss3 = function()
 		{
 			tr = 'transform-origin: 0 0; transform: ' + tr + '; ';
 		}
-
+		
+		if (this.overflow == 'block' && this.valign == mxConstants.ALIGN_MIDDLE)
+		{
+			tr += 'max-height: ' + (h + 1) + 'px;';
+		}
+		
 		if (ofl == '')
 		{
 			flex += item;
@@ -852,6 +857,11 @@ mxText.prototype.redrawHtmlShapeWithCss3 = function()
 			}
 		}
 
+		if (this.overflow == 'block')
+		{
+			item += 'width: 100%; ';
+		}
+		
 		if (this.opacity < 100)
 		{
 			block += 'opacity: ' + (this.opacity / 100) + '; ';
@@ -864,11 +874,46 @@ mxText.prototype.redrawHtmlShapeWithCss3 = function()
 		if (this.node.firstChild == null)
 		{
 			this.node.innerHTML = '<div><div>' + html +'</div></div>';
+			
+			if (mxClient.IS_IE11)
+			{
+				this.fixFlexboxForIe11(this.node);
+			}
 		}
 
 		this.node.firstChild.firstChild.setAttribute('style', block);
 		this.node.firstChild.setAttribute('style', item);
 	}));
+};
+
+/**
+ * Function: fixFlexboxForIe11
+ * 
+ * Rewrites flexbox CSS for IE11 to work around overflow issues.
+ */
+mxText.prototype.fixFlexboxForIe11 = function(node)
+{
+	var elts = node.querySelectorAll('div[style*="display: flex; justify-content: flex-end;"]');
+	
+	for (var i = 0; i < elts.length; i++)
+	{
+		// Fixes right aligned elements to allow for overflow
+		elts[i].style.justifyContent = 'flex-start';
+		elts[i].style.flexDirection = 'row-reverse';
+	}
+	
+	// LATER: Overflow center with flexbox in IE11 that keeps word wrapping
+	if (!this.wrap)
+	{
+		var elts = node.querySelectorAll('div[style*="display: flex; justify-content: center;"]');
+		var w = -window.innerWidth;
+		
+		for (var i = 0; i < elts.length; i++)
+		{
+			elts[i].style.marginLeft = w + 'px';
+			elts[i].style.marginRight = w + 'px';
+		}
+	}
 };
 
 /**
@@ -1336,6 +1381,10 @@ mxText.prototype.updateSize = function(node, enableWrap)
 		style.width = (w + 1) + 'px';
 		style.maxHeight = (h + 1) + 'px';
 		style.overflow = 'hidden';
+	}
+	else if (this.overflow == 'block')
+	{
+		style.width = (w + 1) + 'px';
 	}
 	
 	if (this.wrap && w > 0)
